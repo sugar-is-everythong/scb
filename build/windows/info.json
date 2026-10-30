@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.1.0"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "0.1.0",
+			"CompanyName": "糖分至上",
+			"FileDescription": "粘一下",
+			"LegalCopyright": "© 2026, My Company",
+			"ProductName": "粘一下",
+			"Comments": "This is a comment"
+		}
+	}
+}

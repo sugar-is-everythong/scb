@@ -1,0 +1,29 @@
+{
+	"name": "my-app",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build:dev": "vite build --minify false --mode development",
+		"build": "vite build --mode production",
+		"preview": "vite preview",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"prepare": "svelte-kit sync || echo ''"
+	},
+	"dependencies": {
+		"@wailsio/runtime": "3.0.0"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^4.0.0",
+		"@sveltejs/kit": "^3.0.0",
+		"@sveltejs/vite-plugin-svelte": "^7.2.0",
+		"svelte": "^5.57.1",
+		"vite": "^8.3.0"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*",
+		"#bindings/*": "./bindings/*"
+	}
+}
