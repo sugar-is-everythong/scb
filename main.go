@@ -1,11 +1,11 @@
 package main
 
 import (
-	"changeme/global"
-	"changeme/service"
-	"changeme/tools"
 	"embed"
 	"log"
+	"scb/global"
+	"scb/service"
+	"scb/tools"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -105,6 +105,12 @@ func register(app *application.App) {
 
 		mainW.Show()
 		mainW.Focus()
+
+		// Win11 前台锁定可能导致 Focus() 未真正激活窗口，检查并强制激活
+		hwnd := uintptr(mainW.NativeWindow())
+		if hwnd != 0 && tools.ForegroundWindow() != hwnd {
+			tools.ForceForeground(hwnd)
+		}
 	}
 	err := app.GlobalShortcut.Register("super+v", showAtCursor)
 

@@ -1,5 +1,3 @@
-import {Fetch} from "#lib/fetch.js";
-
 /**
  * GO语言中的 filepath
  * @param {string[]} strs 文件路径
@@ -248,13 +246,20 @@ export const getFileIcon = (file, pathRouets) => {
     } else return "/public/win-icon/unkownIcon.png"
 }
 
+// 把图片的本地路径替换为服务器路径
 export const localPathReplace = (path) => {
     if (path.includes("file:///")) path = path.replaceAll("file:///", '/wg/file/').replace(':\\', '/').replace(':/', '/')
+    // 解码 URL 编码的字符(如 %20 -> 空格)
+    try {
+        path = decodeURIComponent(path)
+    } catch (e) {
+        // 解码失败保持原样
+    }
     return path
 }
 
-export const getFile = (path) => {
-    return Fetch('/file/' + path.replaceAll(":", '').replaceAll("\\", '/')).then((res) => {
-        console.log(res)
-    })
+// 将服务器路径替换为图片的本地路径
+export const toRealPath = (path) => {
+    path = path.replace('/wg/file/', '')
+    return path[0] + ":" + path.slice(1)
 }

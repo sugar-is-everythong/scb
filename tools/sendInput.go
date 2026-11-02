@@ -20,8 +20,10 @@ const (
 	inputKeyboard   = 1      // INPUT_KEYBOARD
 	keyEventKeyUp   = 0x0002 // KEYEVENTF_KEYUP
 	keyEventUnicode = 0x0004 // KEYEVENTF_UNICODE
+	keyEventExtKey  = 0x0001 // KEYEVENTF_EXTENDEDKEY
 
 	vkControl = 0x11 // VK_CONTROL
+	vkMenu    = 0x12 // VK_MENU (Alt 键)
 	vkV       = 0x56 // 'V' 键
 )
 
@@ -167,6 +169,23 @@ func FocusWindow(hwnd uintptr) bool {
 	}
 	r, _, _ := syscall.SyscallN(pSetForegroundWindow.Addr(), hwnd)
 	return r != 0
+}
+
+// ForceForeground 强制把指定窗口激活到前台。
+// Windows 11 的前台窗口锁定机制可能阻止 SetForegroundWindow 直接生效，
+// 模拟一次 Alt 键按下+释放可以解锁前台锁定，让后续的 SetForegroundWindow 成功。
+func ForceForeground(hwnd uintptr) bool {
+	if hwnd == 0 {
+		return false
+	}
+	// 模拟 Alt 键按下+释放，解锁前台窗口锁定
+	ins := []input{
+		keyboardEvent(keyboardInput{wVk: vkMenu, dwFlags: keyEventExtKey}),
+		keyboardEvent(keyboardInput{wVk: vkMenu, dwFlags: keyEventExtKey | keyEventKeyUp}),
+	}
+	_, _ = sendInput(ins)
+	// 现在尝试激活窗口
+	return FocusWindow(hwnd)
 }
 
 // WaitForegroundWindow 等待前台窗口切换到 target 窗口。

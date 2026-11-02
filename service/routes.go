@@ -1,8 +1,8 @@
 package service
 
 import (
-	"changeme/tools"
 	"net/http"
+	"scb/tools"
 
 	"github.com/gin-gonic/gin"
 )
@@ -37,6 +37,8 @@ func cbGroup(g *gin.RouterGroup) {
 
 	g.GET("/getlocal", localStoreGet)
 	g.POST("/savelocal", localStoreSet)
+	g.POST("/deletelocal", localStoreDelete)
+	g.POST("/setalllocal", localStoreSetAll)
 
 }
 

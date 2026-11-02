@@ -6,13 +6,13 @@
 
     /**
      * @type {{
-     *   cb: import('#bindings/changeme/cb/models.ts').resCb,
+     *   cb: import('#bindings/scb/cb/models.ts').RecordJs,
      *   pinned?: boolean,
      *   select?: boolean, // 是否为当前选中项
      *   onpin: () => void,
-     *   ondelete: () => void,
+     *   ondelete?: () => void,
      *   oninsert?: () => void, // 请求写回剪贴板
-     *   oneditstate?: (cb: import('#bindings/changeme/cb/models.ts').resCb, editing: boolean) => void
+     *   oneditstate?: (cb: import('#bindings/scb/cb/models.ts').RecordJs, editing: boolean) => void
      * }}
      */
     let {cb, pinned = false, select = false, onpin, ondelete, oninsert, oneditstate} = $props();
@@ -20,11 +20,21 @@
     /** 'none' | 'text' | 'html' */
     let editing = $state('none');
 
-    const kind = $derived(
-        cb.hasHTML ? 'html' : cb.hasFiles ? 'files' : cb.hasRTF ? 'rtf' : cb.hasImage ? 'image' : 'text'
-    );
+    let kind = $derived.by(() => {
+        if (cb.hasHTML) return 'html';
+        if (cb.hasImage) return 'image';
+        if (cb.hasFiles) return 'files';
+        if (cb.hasRTF) return 'rtf';
+        return 'text';
+    })
 
-    const label = $derived({html: 'HTML', files: '文件', rtf: 'RTF', image: '图片', text: '文本'}[kind]);
+    let label = $derived.by(()=> {
+        if (cb.hasHTML) return 'HTML';
+        if (cb.hasImage) return '图片';
+        if (cb.hasFiles) return '文件';
+        if (cb.hasRTF) return 'RTF';
+        return '文本';
+    })
 
     // Go 的 []byte 过 JSON 是 base64，可直接拼 data URL
     const imgSrc = $derived.by(() => {
@@ -46,6 +56,7 @@
     };
 
     /** 切换编辑态，并把编辑状态上报给页面（编辑中禁止回车写回） */
+    /** @param {"image" | "text" | "html" | "files" | "rtf"} kind */
     const toggleEdit = (kind) => {
         const next = kind === 'html' ? 'html' : 'text';
         editing = editing === next ? 'none' : next;
@@ -58,8 +69,20 @@
         oninsert?.();
     };
 
+    const tagClick = (e) => {
+        e.stopPropagation()
+        if(kind === 'html'){
+            label='文本'
+            kind='text'
+        }else if (kind === 'text'){
+            label='HTML'
+            kind='html'
+        }
+    }
+
+    // 粘贴全部文件
     const onreveal = () => {
-        console.log(cb)
+        cbInset('files', JSON.stringify(cb.files))
     }
 
     /**
@@ -70,13 +93,13 @@
         e.stopPropagation()
         let body = JSON.stringify([f]);
 
-        cbInset('files',body)
+        cbInset('files', body)
     }
 </script>
 
 <article class={['card', { pinned } ,{select}]}>
     <div class="body" onclick={onBodyClick}>
-        <span class="tag">{label}</span>
+        <span class="tag" onclick={tagClick}>{label}</span>
 
         {#if kind === 'html'}
             {#if editing === 'html'}
@@ -85,11 +108,12 @@
                 <ShadowHtml html={htmlSource}/>
             {/if}
         {:else if kind === 'image'}
+            <!-- 在接受数据的时候遇到只包含图片的html或者file会转换成图片显示 -->
             <img class="image" src={imgSrc} alt="">
         {:else if kind === 'files'}
             <ul class="files">
                 {#each cb.files as file (file)}
-                    <li onclick={(e) => fileClick(file,e)} title={file}>{file}</li>
+                    <li onclick={(e) => fileClick(file,e)} title='单文件粘贴'>{file}</li>
                 {/each}
             </ul>
         {:else if kind === 'rtf'}
@@ -124,10 +148,11 @@
         border-radius: 6px;
         transition: border-color 0.15s,
         box-shadow 0.15s;
+        --wails-draggable: no-drag;
     }
 
     .card.select {
-        border: 1px #4b7eff solid;
+        border: 1px #4b7eff solid !important;
     }
 
     .card:hover {
@@ -167,6 +192,8 @@
         monospace;
         letter-spacing: 0.06em;
         text-transform: uppercase;
+        cursor: default;
+        user-select: none;
     }
 
     .text {
@@ -176,6 +203,7 @@
         font: 13px/1.55 system-ui, 'Segoe UI', sans-serif;
         white-space: pre-wrap;
         overflow-wrap: anywhere;
+        overflow: auto;
     }
 
     .muted {

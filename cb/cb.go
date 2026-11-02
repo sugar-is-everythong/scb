@@ -28,12 +28,15 @@ package cb
 
 import (
 	"bytes"
-	"changeme/global"
 	"context"
 	"errors"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
-	"path/filepath"
+	"regexp"
+	"scb/global"
+	"scb/tools"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -46,53 +49,28 @@ import (
 // 说明这次变化是本程序自己造成的（写入目标内容或恢复原内容），直接跳过不通知。
 var selfLock atomic.Uint32
 
-func init() {
-	type resCb struct {
-		HasText  bool     `json:"hasText"` // 含纯文本
-		Text     string   `json:"text"`
-		HasImage bool     `json:"hasImage"` // 含图片
-		Image    []byte   `json:"image"`
-		HasHTML  bool     `json:"hasHTML"` // 含 HTML 富文本
-		HTML     *HTML    `json:"HTML"`
-		HasRTF   bool     `json:"hasRTF"` // 含 RTF 富文本
-		RTF      []byte   `json:"RTF"`
-		HasFiles bool     `json:"hasFiles"` // 含文件列表
-		Files    []string `json:"files"`
-	}
+type RecordJs struct {
+	HasText  bool     `json:"hasText"` // 含纯文本
+	Text     string   `json:"text"`
+	HasImage bool     `json:"hasImage"` // 含图片
+	Image    []byte   `json:"image"`
+	HasHTML  bool     `json:"hasHTML"` // 含 HTML 富文本
+	HTML     *HTML    `json:"HTML"`
+	HasRTF   bool     `json:"hasRTF"` // 含 RTF 富文本
+	RTF      []byte   `json:"RTF"`
+	HasFiles bool     `json:"hasFiles"` // 含文件列表
+	Files    []string `json:"files"`
+}
 
-	application.RegisterEvent[resCb]("cb-change")
+func init() {
+
+	application.RegisterEvent[RecordJs]("cb-change")
 
 	go func() {
 		time.Sleep(1 * time.Second)
 		recordChan, _ := Watch(context.Background(), 500*time.Millisecond)
 		for rec := range recordChan {
-			rc := resCb{
-				HasText:  rec.HasText,
-				HasImage: rec.HasImage,
-				HasHTML:  rec.HasHTML,
-				HasRTF:   rec.HasRTF,
-				HasFiles: rec.HasFiles,
-			}
-
-			// 图片类型可能包含 html 标签和 file 文件，需优先级排序减少图片的内存占用
-			// 但是不保留图片又比较难处理，讨厌
-			switch {
-			case rc.HasHTML:
-				rc.HTML, _ = rec.GetHTML()
-				rc.Text = rec.GetText()
-				//fallthrough
-			case rc.HasFiles:
-				rc.Files, _ = rec.GetFiles()
-				fallthrough
-			case rc.HasImage:
-				rc.Image, _ = rec.GetImage()
-			case rc.HasRTF:
-				rc.RTF, _ = rec.GetRTF()
-				rc.Text = rec.GetText()
-			case rc.HasText:
-				rc.Text = rec.GetText()
-			}
-
+			rc := rec.transform() // 转换为 JS 可用的结构体并发送事件
 			global.App.Event.Emit("cb-change", rc)
 		}
 	}()
@@ -112,12 +90,12 @@ type Record struct {
 	HasRTF   bool // 含 RTF 富文本
 	HasFiles bool // 含文件列表
 
-	rawText  []byte // CF_UNICODETEXT 原始 UTF-16 字节
-	rawImage []byte // CF_DIB 原始字节
-	rawPNG   []byte // "PNG" 注册格式的现成 PNG 字节（部分来源会同时提供）
-	rawHTML  []byte // "HTML Format" 原始字节
-	rawRTF   []byte // "Rich Text Format" 原始字节
-	rawFiles []byte // CF_HDROP 原始字节
+	RawText  []byte // CF_UNICODETEXT 原始 UTF-16 字节
+	RawImage []byte // CF_DIB 原始字节
+	RawPNG   []byte // "PNG" 注册格式的现成 PNG 字节（部分来源会同时提供）
+	RawHTML  []byte // "HTML Format" 原始字节
+	RawRTF   []byte // "Rich Text Format" 原始字节
+	RawFiles []byte // CF_HDROP 原始字节
 }
 
 // Read 读取当前剪贴板内容并返回快照。
@@ -125,21 +103,21 @@ type Record struct {
 func Read() (*Record, error) {
 	r := &Record{}
 	if err := withClipboard(func() error {
-		r.rawText = readLocked(cfUnicodeText)
-		r.rawImage = readLocked(cfDIB)
-		r.rawPNG = readLocked(formatPNG)
-		r.rawHTML = readLocked(formatHTML)
-		r.rawRTF = readLocked(formatRTF)
-		r.rawFiles = readLocked(cfHDROP)
+		r.RawText = readLocked(cfUnicodeText)
+		r.RawImage = readLocked(cfDIB)
+		r.RawPNG = readLocked(formatPNG)
+		r.RawHTML = readLocked(formatHTML)
+		r.RawRTF = readLocked(formatRTF)
+		r.RawFiles = readLocked(cfHDROP)
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-	r.HasText = r.rawText != nil
-	r.HasImage = r.rawImage != nil || r.rawPNG != nil
-	r.HasHTML = r.rawHTML != nil
-	r.HasRTF = r.rawRTF != nil
-	r.HasFiles = r.rawFiles != nil
+	r.HasText = r.RawText != nil
+	r.HasImage = r.RawImage != nil || r.RawPNG != nil
+	r.HasHTML = r.RawHTML != nil
+	r.HasRTF = r.RawRTF != nil
+	r.HasFiles = r.RawFiles != nil
 	return r, nil
 }
 
@@ -148,19 +126,19 @@ func (r *Record) GetText() string {
 	if !r.HasText {
 		return ""
 	}
-	return utf16FromBytes(r.rawText)
+	return utf16FromBytes(r.RawText)
 }
 
 // GetImage 返回快照中图片的 PNG 编码字节。
 // 优先使用来源直接提供的 "PNG" 格式（零转换），没有再用 CF_DIB 解码转换。
 func (r *Record) GetImage() ([]byte, error) {
-	if r.rawPNG != nil {
-		return r.rawPNG, nil
+	if r.RawPNG != nil {
+		return r.RawPNG, nil
 	}
 	if !r.HasImage {
 		return nil, ErrNoData
 	}
-	return decodeDIB(r.rawImage)
+	return decodeDIB(r.RawImage)
 }
 
 // HTML 是从剪贴板 CF_HTML 解析出的结果：既含纯净正文片段，也含头部元信息。
@@ -175,7 +153,7 @@ func (r *Record) GetHTML() (*HTML, error) {
 	if !r.HasHTML {
 		return nil, ErrNoData
 	}
-	return parseCFHTML(r.rawHTML)
+	return parseCFHTML(r.RawHTML)
 }
 
 // GetRTF 返回快照中 RTF 原始字节。
@@ -183,7 +161,7 @@ func (r *Record) GetRTF() ([]byte, error) {
 	if !r.HasRTF {
 		return nil, ErrNoData
 	}
-	return r.rawRTF, nil
+	return r.RawRTF, nil
 }
 
 // GetFiles 返回快照中的文件路径列表（绝对路径）。
@@ -191,7 +169,7 @@ func (r *Record) GetFiles() ([]string, error) {
 	if !r.HasFiles {
 		return nil, ErrNoData
 	}
-	return parseHDROP(r.rawFiles)
+	return parseHDROP(r.RawFiles)
 }
 
 // ==================== 监控 ====================
@@ -251,17 +229,45 @@ func WriteText(s string) error {
 	return writeFormat(cfUnicodeText, utf16Bytes(u))
 }
 
-// WriteImage 将 PNG 编码的图片写入剪贴板，同时写入 "PNG" 原始格式与 CF_DIB，
+// WriteImage 将任意格式图片（PNG/JPEG/GIF 等）写入剪贴板，同时写入 "PNG" 格式与 CF_DIB，
 // 支持哪种格式的程序（浏览器、图像软件等）就取哪种，无需接收方自行转换。
-func WriteImage(pngData []byte) error {
-	dib, err := encodeDIB(pngData)
+// 如果原图是 PNG，直接写入原始字节（零转换）；否则统一转码成 PNG。
+func WriteImage(imgData []byte) error {
+	// 先解码一次
+	src, _, err := image.Decode(bytes.NewReader(imgData))
+	if err != nil {
+		return fmt.Errorf("cb: 图片解码失败: %w", err)
+	}
+
+	// 生成 DIB
+	dib, err := encodeDIBFromImage(src)
 	if err != nil {
 		return err
 	}
+
+	// 检测是否是 PNG：是的话直接用原始字节，否则转码
+	var pngBytes []byte
+	if isPNG(imgData) {
+		pngBytes = imgData
+	} else {
+		var pngBuf bytes.Buffer
+		if err := png.Encode(&pngBuf, src); err != nil {
+			return fmt.Errorf("cb: PNG 编码失败: %w", err)
+		}
+		pngBytes = pngBuf.Bytes()
+	}
+
 	return writeFormats(map[uint32][]byte{
-		formatPNG: pngData,
+		formatPNG: pngBytes,
 		cfDIB:     dib,
 	})
+}
+
+// isPNG 检测图片数据是否是 PNG 格式（通过文件头魔数判断）
+func isPNG(data []byte) bool {
+	// PNG 文件头：\x89PNG\r\n\x1a\n（8 字节）
+	pngHeader := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
+	return len(data) >= 8 && bytes.Equal(data[:8], pngHeader)
 }
 
 // WriteHTML 将 HTML 片段按 CF_HTML 标准格式写入剪贴板（头部偏移自动计算）
@@ -294,30 +300,11 @@ func WriteRTF(rtf []byte) error {
 // 注意：仅写入文件路径列表，粘贴方（如资源管理器）会按复制文件处理；
 // 若要支持"剪切"语义还需配合 DragLeave/降效语义消息，此处未实现。
 func WriteFiles(paths []string) error {
-	if len(paths) == 0 {
-		return errors.New("cb: 文件列表为空")
+	data, err := encodeHDROP(paths)
+	if err != nil {
+		return err
 	}
-	var buf bytes.Buffer
-	hdr := make([]byte, 20) // DROPFILES：pFiles(4) + pt.x(4) + pt.y(4) + fNC(4) + fWide(4)
-	le.PutUint32(hdr[0:4], 20)
-	le.PutUint32(hdr[16:20], 1) // fWide = 1，文件名为 UTF-16
-	buf.Write(hdr)
-	for _, p := range paths {
-		abs, err := filepath.Abs(p)
-		if err != nil {
-			return fmt.Errorf("cb: 路径 %q 转换失败: %w", p, err)
-		}
-		if _, err := os.Stat(abs); err != nil {
-			return fmt.Errorf("cb: 文件 %q 不存在: %w", abs, err)
-		}
-		u, err := syscall.UTF16FromString(abs)
-		if err != nil {
-			return fmt.Errorf("cb: 路径 %q 包含非法字符: %w", p, err)
-		}
-		buf.Write(utf16Bytes(u))
-	}
-	buf.Write([]byte{0, 0}) // 列表结尾的额外空字符
-	return writeFormat(cfHDROP, buf.Bytes())
+	return writeFormat(cfHDROP, data)
 }
 
 // WriteAll 将一条记录的多格式数据一次会话同时写入剪贴板
@@ -328,11 +315,122 @@ func WriteAll(rec *Record) error {
 		return errors.New("cb: 记录为空")
 	}
 	return writeFormats(map[uint32][]byte{
-		cfUnicodeText: rec.rawText,
-		cfDIB:         rec.rawImage,
-		formatPNG:     rec.rawPNG,
-		formatHTML:    rec.rawHTML,
-		formatRTF:     rec.rawRTF,
-		cfHDROP:       rec.rawFiles,
+		cfUnicodeText: rec.RawText,
+		cfDIB:         rec.RawImage,
+		formatPNG:     rec.RawPNG,
+		formatHTML:    rec.RawHTML,
+		formatRTF:     rec.RawRTF,
+		cfHDROP:       rec.RawFiles,
 	})
+}
+
+// ==================== JS ====================
+
+func (r *Record) transform() RecordJs {
+	rc := RecordJs{
+		HasText:  r.HasText,
+		HasImage: r.HasImage,
+		HasHTML:  r.HasHTML,
+		HasRTF:   r.HasRTF,
+		HasFiles: r.HasFiles,
+	}
+
+	// 图片类型可能包含 html 标签和 file 文件，需优先级排序减少图片的内存占用
+	// 但是不保留图片又比较难处理，讨厌
+	switch {
+	case rc.HasHTML:
+		rc.HTML, _ = r.GetHTML()
+		rc.Text = r.GetText()
+		//fallthrough
+	case rc.HasFiles:
+		rc.Files, _ = r.GetFiles()
+		fallthrough
+	case rc.HasImage:
+		rc.Image, _ = r.GetImage()
+	case rc.HasRTF:
+		rc.RTF, _ = r.GetRTF()
+		rc.Text = r.GetText()
+	case rc.HasText:
+		rc.Text = r.GetText()
+	}
+
+	return rc
+}
+
+func (r *RecordJs) transform() (*Record, error) {
+	rec := Record{
+		HasText:  r.HasText,
+		HasImage: r.HasImage,
+		HasHTML:  r.HasHTML,
+		HasRTF:   r.HasRTF,
+		HasFiles: r.HasFiles,
+		//RawHTML:  r.HTML, 额外转换，放在这里显示提醒我别忘了
+		RawImage: r.Image, // 这里不一定有内容
+		RawRTF:   r.RTF,
+		//RawFiles: r.Files,
+	}
+
+	// RawText 的约定是 CF_UNICODETEXT 的 UTF-16 字节（与 Read 读到的、GetText 解的、
+	// WriteAll 写回剪贴板的都一致），直接拿 Go string 的 UTF-8 字节会让取出时按
+	// UTF-16 两字节一组误解成乱码，转化方式与 WriteText 保持一致。
+	if r.HasText {
+		u, err := syscall.UTF16FromString(r.Text)
+		if err != nil {
+			return nil, fmt.Errorf("cb: 文本包含非法字符: %w", err)
+		}
+		rec.RawText = utf16Bytes(u)
+	}
+
+	// 给js图的时候和从js拿图的时候优先级正好相反，可以看readme
+	switch {
+	case r.HasImage:
+
+		if r.HasFiles { // 这里永远只有一条文件，因为剪贴板不允许一次粘贴两条图片
+			imgFile, err := os.ReadFile(r.Files[0])
+			if err != nil {
+				return nil, fmt.Errorf("cb: 文件 %q 读取失败: %w", r.Files[0], err)
+			}
+			// 解析为图片，验证是否为合法图片格式
+			img, _, err := image.Decode(bytes.NewReader(imgFile))
+			if err != nil {
+				return nil, fmt.Errorf("解析图片失败: %w", err)
+			}
+			rec.RawImage = imgFile
+
+			// PNG
+			if isPNG(imgFile) {
+				rec.RawPNG = imgFile
+			} else {
+				// 走 Decode + Encode
+				var buf bytes.Buffer
+				err = png.Encode(&buf, img)
+				if err != nil {
+					return nil, fmt.Errorf("编码图片失败: %w", err)
+				}
+				rec.RawPNG = buf.Bytes()
+			}
+		} else if r.HasHTML { // 网络类型的图片
+			re := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
+			matches := re.FindAllStringSubmatch(r.HTML.Fragment, -1)
+			src := matches[0][1]
+
+			imgData, err := tools.GetWebImage(src)
+			if err != nil {
+				return nil, fmt.Errorf("cb: 图片 %q 下载失败: %w", src, err)
+			}
+
+			if isPNG(imgData) {
+				rec.RawPNG = imgData
+			} else {
+			}
+		}
+	case r.HasFiles:
+		hdrop, err := encodeHDROP(r.Files)
+		if err != nil {
+			return nil, err
+		}
+		rec.RawFiles = hdrop
+	}
+
+	return &rec, nil
 }

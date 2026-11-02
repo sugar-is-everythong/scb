@@ -17,7 +17,7 @@ func response(c *gin.Context, code int, data any, msg string) {
 }
 
 func Ok(c *gin.Context, data any, msg string) {
-	response(c, 0, data, msg)
+	response(c, 200, data, msg)
 }
 
 func OkWithData(c *gin.Context, data any) {

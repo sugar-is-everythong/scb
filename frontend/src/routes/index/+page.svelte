@@ -1,11 +1,12 @@
 <script>
-    import {Events} from '@wailsio/runtime';
+    import {Events, Window} from '@wailsio/runtime';
     import Card from './clip/card.svelte';
     import {onMount} from 'svelte';
-    import {localPathReplace} from "#lib/file.js";
-    import {cbInset} from "#lib/cb.js";
+    import {localPathReplace, toRealPath} from "#lib/file.js";
+    import {cbInset, deleteLocal, saveLocal} from "#lib/cb.js";
+    import {Fetch} from "#lib/fetch.js";
 
-    /** @type {import('#bindings/changeme/cb/models.ts').resCb[]} */
+    /** @type {import('#bindings/scb/cb/models.ts').RecordJs[]} */
     const cblist = $state([]);
     Events.On('cb-change', (event) => {
         let cb = event.data;
@@ -21,19 +22,21 @@
                 let images = []
                 for (let i = 0; i < children.length; i++) {
                     images[i] = {
-                        image: localPathReplace(children[i].src),
-                        hasImage: true,
                         hasText: false,
                         text: '',
                         hasHTML: false,
                         HTML: null,
                         hasRTF: false,
                         RTF: null,
-                        hasFiles: false,
-                        files: null,
+
+                        hasImage: true,
+                        image: localPathReplace(children[i].src),
+                        hasFiles: true,
+                        files: [localPathReplace(children[i].src)],// 为了存到本地的时候好处理，留一个file类型
                     }
                 }
                 cb = images;
+                console.log(cb)
             }
         }
 
@@ -45,31 +48,39 @@
 
     /**
      * 固定条目，按固定先后排在列表最顶部
-     * @type {import('#bindings/changeme/cb/models.ts').resCb[]}
+     * @type {import('#bindings/scb/cb/models.ts').RecordJs[]}
      */
     const pinned = $state([]);
 
     /** 类型图标：先用单个字母/字占位，后续可换 SVG */
     const FILTERS = [
         {key: 'text', label: '文', title: '纯文本'},
-        {key: 'html', label: 'H', title: 'HTML'},
-        {key: 'rtf', label: 'R', title: 'RTF'},
-        {key: 'image', label: '图', title: '图片'},
-        {key: 'files', label: '件', title: '文件'}
+        {key: 'html', label: 'H', icon: '/imgs/html.png', title: 'HTML'},
+        // {key: 'rtf', label: 'R', title: 'RTF'}, 暂时没看到有RTF的
+        {key: 'image', label: '️️️图片', icon: '/imgs/image.png', title: '图片'},
+        {key: 'files', label: '文件', icon: '/imgs/wfjmjw.png', title: '文件'}
     ];
 
     /** 当前过滤的类型，空字符串表示全部 */
     let filter = $state('');
+    /** 搜索关键字，空字符串表示不过滤；只匹配 RecordJs.text */
+    let keyword = $state('');
 
-    /** @param {import('#bindings/changeme/cb/models.ts').resCb} cb */
+    /** @param {import('#bindings/scb/cb/models.ts').RecordJs} cb */
     const kindOf = (cb) =>
         cb.hasHTML ? 'html' : cb.hasFiles ? 'files' : cb.hasRTF ? 'rtf' : cb.hasImage ? 'image' : 'text';
 
-    const view = $derived(
-        [...pinned, ...cblist.filter((cb) => !pinned.includes(cb))].filter(
-            (cb) => !filter || kindOf(cb) === filter
-        )
-    );
+    /** 只按 text 字段做不区分大小写的子串匹配 */
+    const matchKeyword = (cb) => {
+        if (!keyword) return true;
+        return (cb.text ?? '').toLowerCase().includes(keyword.toLowerCase());
+    };
+
+    const matchType = (cb) => !filter || kindOf(cb) === filter;
+
+    const pinnedView = $derived(pinned.filter((cb) => matchType(cb) && matchKeyword(cb)));
+    const listView = $derived(cblist.filter((cb) => matchType(cb) && matchKeyword(cb)));
+    const view = $derived([...pinnedView, ...listView]);
 
     /** 当前选中项下标，-1 表示未选中 */
     let select = $state(-1);
@@ -89,18 +100,35 @@
         el?.scrollIntoView({block: 'center', behavior: 'smooth'});
     });
 
-    /** 焦点在输入框里时，键盘事件交还给输入框自己处理 */
+    /**
+     * 焦点在输入框里时，键盘事件交还给输入框自己处理
+     * @param {KeyboardEvent} e
+     */
     const inInput = (e) => {
         const t = e.target;
         return t instanceof HTMLElement && !!t.closest('textarea, input, select, [contenteditable="true"]');
     };
 
-    /** 焦点在按钮上时，回车交给按钮自己处理（类型芯片、图标栏） */
+    let hasSelection = false // 这次是不是有选中
+    let lastHasSelection = false // 上次是不是有选中，优化手感
+    /** @param {Event} e */
+    const onselectionchange = (e) => {
+        let a = document?.getSelection()?.toString();
+        hasSelection = !!a?.length
+    }
+
+    /**
+     * 焦点在按钮上时，回车交给按钮自己处理（类型过滤按钮，清空等）
+     * @param {KeyboardEvent} e
+     */
     const inButton = (e) => {
         const t = e.target;
         return t instanceof HTMLElement && !!t.closest('button, a');
     };
 
+    let searchDom
+
+    /** @param {KeyboardEvent} e */
     const documentOnkeydown = (e) => {
         if (e.isComposing || inInput(e)) return;
 
@@ -110,13 +138,26 @@
         } else if (e.key === 'ArrowUp') {
             if (select > 0) select--;
         } else if (e.key === 'Enter') {
+            if (editingSet.size === 0) {
+                searchDom.focus();
+                searchDom.select();
+                return
+            }
+
             if (inButton(e)) return;
             const cb = view[select];
             if (cb) inset(cb);
+        } else if (e.key === 'Escape') {
+            if (editingSet.size > 0) return;
+
+            select = -1;
+            Window.Hide()
         }
     };
 
-    /** base64 字符串转字节数组：Go 的 []byte 过 JSON 是 base64，后端要的是 PNG 原始字节 */
+    /** base64 字符串转字节数组：Go 的 []byte 过 JSON 是 base64，后端要的是 PNG 原始字节
+     * @param {string} b64
+     */
     const base64ToBytes = (b64) => {
         const bin = atob(b64);
         const bytes = new Uint8Array(bin.length);
@@ -124,19 +165,35 @@
         return bytes;
     };
 
-    /** 把条目写回剪贴板并触发粘贴，编辑中不写回 */
+    /**
+     * 把条目写回剪贴板并触发粘贴，编辑中不触发
+     * @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
+     */
     const inset = async (cb) => {
-        if (editingSet.size > 0) return;
+        if (hasSelection || lastHasSelection) {
+            lastHasSelection = hasSelection;
+            return
+        }
+        if (editingSet.size > 0) return
         // 只支持【文本、图片】格式写回：HTML/RTF 卡片降级为纯文本
         // 【文件】 类型的在card组件单独处理，文件类型的逻辑比较多
         let type = 'text';
         let body = cb.text;
-        console.log(cb)
+
         if (kindOf(cb) === 'image' && cb.image) {
-            // type = 'image';
+            let img = cb.image
             // 本来应该使用写入图片类型，但是现在的设计图片预览使用的是【文件】或者【网络连接】所以直接使用 imageCORS 进行下载了
-            type = 'imageCORS?url=' + cb.image;
-            body = null
+            if (img.startsWith('http')) { // 网络图片类型
+                type = 'imageCORS?url=' + img;
+                body = null
+            } else if (img.startsWith('data:')) { // base64图片类型
+                type = 'image';
+                body = base64ToBytes(img.split(',')[1]);
+            } else { // 本地的图片类型
+                type = 'files';
+                body = JSON.stringify(toRealPath(img))
+            }
+
         } else if (!cb.text) {
             return; // 没有可写回的内容
         }
@@ -149,28 +206,45 @@
 
     /** 清空所有非固定条目 */
     const clearAll = () => {
-        for (let i = cblist.length - 1; i >= 0; i--) {
-            if (!pinned.includes(cblist[i])) cblist.splice(i, 1);
+        cblist.length = 0;
+    };
+
+    /**
+     *  @param {string} w 区分 pinned 还是 cblist
+     *  @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
+     *  @param {number} index
+     */
+    const togglePin = async (w, cb, index) => {
+        if (w === 'pinned') {
+            // 取消钉住：index 就是 store 索引，直接从 pinned 和 store 删除
+            pinned.splice(index, 1);
+            await deleteLocal(index);
+        } else {
+            // 钉住：从 cblist 移除，保存到 store
+            cblist.splice(index, 1);
+            await saveLocal($state.snapshot(cb));
+            pinned.unshift(cb);
         }
     };
 
-    /** @param {import('#bindings/changeme/cb/models.ts').resCb} cb */
-    const togglePin = (cb) => {
-        const i = pinned.indexOf(cb);
-        if (i >= 0) pinned.splice(i, 1);
-        else pinned.unshift(cb);
-    };
-
-    /** @param {import('#bindings/changeme/cb/models.ts').resCb} cb */
-    const remove = (cb) => {
-        pinned.splice(pinned.indexOf(cb), 1);
-        cblist.splice(cblist.indexOf(cb), 1);
+    /**
+     * @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
+     * @param {number} index
+     */
+    const remove = (cb, index) => {
+        cblist.splice(index, 1);
         editingSet.delete(cb);
     };
 
-    let listDom = null;
+    /** @type {Element} */
+    let listDom;
     let hasScrollbar = $state(false);
     onMount(() => {
+        // 加载 store 数据，初始化 pinned（顺序与 store 一致）
+        Fetch('/cb/getlocal').then((res) => {
+            pinned.push(...res);
+        })
+
         const observer = new ResizeObserver(() => {
             hasScrollbar = listDom.scrollHeight > listDom.clientHeight;
         });
@@ -179,7 +253,7 @@
     });
 </script>
 
-<svelte:document onkeydown={documentOnkeydown}/>
+<svelte:document onkeydown={documentOnkeydown} {onselectionchange}/>
 
 <main class="app">
     <header class="bar">
@@ -190,9 +264,17 @@
                         title={f.title}
                         onclick={() => (filter = filter === f.key ? '' : f.key)}
                 >
-                    {f.label}
+                    {#if f.icon}
+                        <img src={f.icon} alt="">
+                    {:else}
+                        {f.label}
+                    {/if}
                 </button>
             {/each}
+        </div>
+
+        <div class="search">
+            <input type="text" bind:this={searchDom} bind:value={keyword} placeholder="搜索文本">
         </div>
 
         <div class="acts">
@@ -201,12 +283,24 @@
     </header>
 
     <section class="list" bind:this={listDom} style:margin-right={hasScrollbar?'4px':'10px'}>
-        {#each view as cb, cbi (cb)}
+        {#each pinnedView as cb, cbi (cb)}
             <Card {cb}
                   select={cbi === select}
-                  pinned={pinned.includes(cb)}
-                  onpin={() => togglePin(cb)}
-                  ondelete={() => remove(cb)}
+                  pinned
+                  onpin={() => togglePin('pinned',cb,cbi)}
+                  oninsert={() => inset(cb)}
+                  oneditstate={(c, editing) => {
+                      if (editing) editingSet.add(c);
+                      else editingSet.delete(c);
+                  }}
+            />
+        {/each}
+
+        {#each listView as cb, cbi (cb)}
+            <Card {cb}
+                  select={cbi + pinnedView.length === select}
+                  onpin={() => togglePin('cblist',cb,cbi)}
+                  ondelete={() => remove(cb,cbi)}
                   oninsert={() => inset(cb)}
                   oneditstate={(c, editing) => {
                       if (editing) editingSet.add(c);
@@ -229,23 +323,48 @@
         height: 100vh;
         overflow: hidden;
         background: rgb(244 245 249 / 0.73);
+        --wails-draggable: drag;
     }
 
     .bar {
         display: flex;
+        justify-content: space-around;
         align-items: center;
-        justify-content: space-between;
+        gap: 7px;
         flex: 0 0 auto;
         height: 34px;
         padding: 0 12px;
-        --wails-draggable: drag;
         user-select: none;
     }
 
     .filters {
         display: flex;
+        align-items: center;
         gap: 4px;
         --wails-draggable: no-drag;
+
+        img {
+            width: 16px;
+            height: 16px;
+        }
+
+        & button:nth-of-type(4) > img {
+            height: 14px;
+        }
+    }
+
+    .search {
+        flex-shrink: 1;
+        display: flex;
+        align-items: center;
+        --wails-draggable: no-drag;
+
+        input {
+            border-radius: 4px;
+            border: 1px solid #e2e5ef;
+            padding: 3px 5px;
+            width: 100%;
+        }
     }
 
     .chip {
@@ -284,15 +403,15 @@
     }
 
     .ghost {
+        flex-shrink: 0;
         padding: 1px 5px;
         padding-top: 2px;
-        display: flex;
         border: 1px solid #e2e5ef;
         border-radius: 4px;
         background: rgb(255 255 255 / 70%);
         color: #6d748c;
         cursor: pointer;
-        font: 11px/1.4 system-ui, sans-serif;
+        font: 11px/1.6 system-ui, sans-serif;
         transition: background-color 0.15s,
         color 0.15s,
         border-color 0.15s;

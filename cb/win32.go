@@ -11,8 +11,12 @@ import (
 	"fmt"
 	"image"
 	"image/draw"
+	_ "image/gif"
+	_ "image/jpeg"
 	"image/png"
 	"log"
+	"os"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -240,12 +244,8 @@ func utf16FromBytes(b []byte) string {
 
 // ---------- 图片编解码（PNG <-> CF_DIB） ----------
 
-// encodeDIB 将 PNG 解码为 32 位自顶向下 CF_DIB
-func encodeDIB(pngData []byte) ([]byte, error) {
-	src, err := png.Decode(bytes.NewReader(pngData))
-	if err != nil {
-		return nil, fmt.Errorf("cb: PNG 解码失败: %w", err)
-	}
+// encodeDIBFromImage 将 image.Image 编码为 32 位自顶向下 CF_DIB
+func encodeDIBFromImage(src image.Image) ([]byte, error) {
 	bounds := src.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 	if w <= 0 || h <= 0 {
@@ -348,6 +348,36 @@ func decodeDIB(dib []byte) ([]byte, error) {
 	if err := png.Encode(&buf, img); err != nil {
 		return nil, fmt.Errorf("cb: PNG 编码失败: %w", err)
 	}
+	return buf.Bytes(), nil
+}
+
+// encodeHDROP 把文件路径列表编码成 CF_HDROP 格式的字节，可直接赋给 Record.RawFiles。
+// 相对路径会转为绝对路径并规整，同时校验文件是否存在。
+func encodeHDROP(paths []string) ([]byte, error) {
+	if len(paths) == 0 {
+		return nil, errors.New("cb: 文件列表为空")
+	}
+	var buf bytes.Buffer
+	hdr := make([]byte, 20) // DROPFILES：pFiles(4) + pt.x(4) + pt.y(4) + fNC(4) + fWide(4)
+	le.PutUint32(hdr[0:4], 20)
+	le.PutUint32(hdr[16:20], 1) // fWide = 1，文件名为 UTF-16
+	buf.Write(hdr)
+	for _, p := range paths {
+		abs, err := filepath.Abs(p)
+		if err != nil {
+			return nil, fmt.Errorf("cb: 路径 %q 转换失败: %w", p, err)
+		}
+		abs = filepath.Clean(abs)
+		if _, err := os.Stat(abs); err != nil {
+			return nil, fmt.Errorf("cb: 文件 %q 不存在: %w", abs, err)
+		}
+		u, err := syscall.UTF16FromString(abs)
+		if err != nil {
+			return nil, fmt.Errorf("cb: 路径 %q 包含非法字符: %w", p, err)
+		}
+		buf.Write(utf16Bytes(u))
+	}
+	buf.Write([]byte{0, 0}) // 列表结尾的额外空字符
 	return buf.Bytes(), nil
 }
 

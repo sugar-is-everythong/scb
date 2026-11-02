@@ -1,13 +1,9 @@
 package service
 
 import (
-	"changeme/cb"
-	"changeme/global"
-	"changeme/store"
-	"changeme/tools"
-	"fmt"
-	"io"
 	"net/http"
+	"scb/cb"
+	"scb/tools"
 
 	"github.com/gin-gonic/gin"
 )
@@ -157,21 +153,9 @@ func cbWriteImageCORS(c *gin.Context) {
 		return
 	}
 
-	res, err := http.Get(imgURL)
+	imgData, err := tools.GetWebImage(imgURL)
 	if err != nil {
-		FailWithMsg(c, "图片获取失败："+err.Error())
-		return
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		FailWithMsg(c, fmt.Sprintf("图片获取失败，状态码 %d", res.StatusCode))
-		return
-	}
-
-	imgData, err := io.ReadAll(res.Body)
-	if err != nil {
-		FailWithMsg(c, "读取图片数据失败："+err.Error())
+		FailWithMsg(c, err.Error())
 		return
 	}
 
@@ -179,6 +163,7 @@ func cbWriteImageCORS(c *gin.Context) {
 		FailWithMsg(c, err.Error())
 		return
 	}
+
 	OK_(c)
 }
 
@@ -236,19 +221,49 @@ func inset(c *gin.Context) {
 // ---------- 本地存储 ----------
 
 func localStoreGet(c *gin.Context) {
-	s := global.Store.All()
+	s := cb.Store.All()
 	OkWithData(c, s)
 }
 
 func localStoreSet(c *gin.Context) {
-	e := store.Entry{}
+	var r cb.RecordJs
 
-	if err := c.ShouldBindJSON(&e); err != nil {
+	if err := c.ShouldBindJSON(&r); err != nil {
+		FailWithMsg(c, "请求参数解析"+err.Error())
+		return
+	}
+
+	if err := cb.Store.SetStoreRJ(&r); err != nil {
+		FailWithMsg(c, "存储错误"+err.Error())
+		return
+	}
+	OK_(c)
+}
+
+func localStoreDelete(c *gin.Context) {
+	var req struct {
+		Index int `json:"index"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
 		FailWithMsg(c, err.Error())
 		return
 	}
-
-	if err := global.Store.Save(e); err != nil {
+	if err := cb.Store.Delete(req.Index); err != nil {
+		FailWithMsg(c, err.Error())
 		return
 	}
+	OK_(c)
+}
+
+func localStoreSetAll(c *gin.Context) {
+	var records []cb.RecordJs
+	if err := c.ShouldBindJSON(&records); err != nil {
+		FailWithMsg(c, err.Error())
+		return
+	}
+	if err := cb.Store.SetAll(records); err != nil {
+		FailWithMsg(c, err.Error())
+		return
+	}
+	OK_(c)
 }

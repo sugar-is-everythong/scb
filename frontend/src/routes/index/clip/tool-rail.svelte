@@ -7,7 +7,7 @@
      *   onedit?: () => void,
      *   onsave?: () => void,
      *   onreveal?: () => void,
-     *   ondelete: () => void
+     *   ondelete?: () => void
      * }}
      */
     let {kind, pinned = false, onpin, onedit, onsave, onreveal, ondelete} = $props();
@@ -43,20 +43,20 @@
     {/if}
 
     {#if kind === 'files'}
-        <button class="ico" title="粘贴文件" onclick={onreveal}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 7h6l2 2h10v10H3V7Z"/>
-            </svg>
+        <button class="ico" title="粘贴全部文件" onclick={onreveal}>
+            <img src="/imgs/filelink.png" alt="">
         </button>
     {/if}
 
-    <button class="ico danger" title="删除" onclick={ondelete}>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 7h16"/>
-            <path d="M9 7V5h6v2"/>
-            <path d="M6 7l1 13h10l1-13"/>
-        </svg>
-    </button>
+    {#if ondelete}
+        <button class="ico danger" title="删除" onclick={ondelete}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7h16"/>
+                <path d="M9 7V5h6v2"/>
+                <path d="M6 7l1 13h10l1-13"/>
+            </svg>
+        </button>
+    {/if}
 </div>
 
 <style>
@@ -83,14 +83,21 @@
         transform 0.15s;
     }
 
-    .ico svg {
-        width: 17px;
-        height: 17px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 1.7;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+    .ico {
+        & svg {
+            width: 17px;
+            height: 17px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.7;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        & img {
+            width: 17px;
+            height: 17px;
+        }
     }
 
     .ico:hover {
