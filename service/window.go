@@ -23,7 +23,7 @@ func create(c *gin.Context) {
 		Height:           winHeight,
 		Frameless:        true,
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
-		URL:              "/detail",
+		URL:              "#/detail",
 		//AlwaysOnTop:      true,
 		BackgroundType: application.BackgroundTypeTranslucent,
 		Windows: application.WindowsWindow{

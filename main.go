@@ -47,7 +47,7 @@ func main() {
 		Frameless:        true,
 		DevToolsEnabled:  true,
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
-		URL:              "/index",
+		URL:              "#/index",
 		Hidden:           true,
 		HideOnFocusLost:  true,
 		AlwaysOnTop:      true,
