@@ -70,11 +70,6 @@
     const kindOf = (cb) =>
         cb.hasHTML ? 'html' : cb.hasFiles ? 'files' : cb.hasRTF ? 'rtf' : cb.hasImage ? 'image' : 'text';
 
-    // 打开控制台
-    $effect(()=> {
-        if(keyword==='log++++') Window.OpenDevTools()
-    })
-
     /** 只按 text 字段做不区分大小写的子串匹配 */
     const matchKeyword = (cb) => {
         if (!keyword) return true;

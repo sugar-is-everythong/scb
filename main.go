@@ -32,8 +32,11 @@ func main() {
 		},
 	})
 	global.App = app
-	if err := app.Autostart.Enable(); err != nil {
-		app.Logger.Error("自启动错误", "error", err)
+	errr := app.Autostart.EnableWithOptions(application.AutostartOptions{
+		Identifier: "scb_app",
+	})
+	if errr != nil {
+		log.Println("创建子启东市失败", errr.Error())
 	}
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
@@ -42,6 +45,7 @@ func main() {
 		Width:            winWidth,
 		Height:           winHeight,
 		Frameless:        true,
+		DevToolsEnabled:  true,
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
 		URL:              "/index",
 		Hidden:           true,
