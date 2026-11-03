@@ -32,6 +32,9 @@ func main() {
 		},
 	})
 	global.App = app
+	if err := app.Autostart.Enable(); err != nil {
+		app.Logger.Error("自启动错误", "error", err)
+	}
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "粘一下",
@@ -42,18 +45,15 @@ func main() {
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
 		URL:              "/index",
 		Hidden:           true,
-		//HideOnFocusLost:  true,
-		AlwaysOnTop:    true,
-		BackgroundType: application.BackgroundTypeTransparent,
+		HideOnFocusLost:  true,
+		AlwaysOnTop:      true,
+		BackgroundType:   application.BackgroundTypeTranslucent,
 		Windows: application.WindowsWindow{
 			/*	ExStyle: w32.WS_EX_NOACTIVATE | w32.WS_EX_LAYERED |
 				w32.WS_EX_TOPMOST |
 				w32.WS_EX_NOREDIRECTIONBITMAP,*/
 			DisableFramelessWindowDecorations: true,
 			HiddenOnTaskbar:                   true,
-			Permissions: map[application.CoreWebView2PermissionKind]application.CoreWebView2PermissionState{
-				application.CoreWebView2PermissionKindOtherSensors: application.CoreWebView2PermissionStateAllow,
-			},
 		},
 	})
 

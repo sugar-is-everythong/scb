@@ -3,7 +3,7 @@
     import Card from './clip/card.svelte';
     import {onMount} from 'svelte';
     import {localPathReplace, toRealPath} from "#lib/file.js";
-    import {cbInset, deleteLocal, saveLocal} from "#lib/cb.js";
+    import {cbInset, deleteLocal, saveLocal, updateStoreAll} from "#lib/cb.js";
     import {Fetch} from "#lib/fetch.js";
 
     /** @type {import('#bindings/scb/cb/models.ts').RecordJs[]} */
@@ -70,6 +70,11 @@
     const kindOf = (cb) =>
         cb.hasHTML ? 'html' : cb.hasFiles ? 'files' : cb.hasRTF ? 'rtf' : cb.hasImage ? 'image' : 'text';
 
+    // 打开控制台
+    $effect(()=> {
+        if(keyword==='log++++') Window.OpenDevTools()
+    })
+
     /** 只按 text 字段做不区分大小写的子串匹配 */
     const matchKeyword = (cb) => {
         if (!keyword) return true;
@@ -132,13 +137,15 @@
     const documentOnkeydown = (e) => {
         if (e.isComposing || inInput(e)) return;
 
-        e.preventDefault();
         if (e.key === 'ArrowDown') {
+            e.preventDefault();
             if (select < view.length - 1) select++;
         } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
             if (select > 0) select--;
         } else if (e.key === 'Enter') {
-            if (editingSet.size === 0) {
+            e.preventDefault();
+            if (editingSet.size === 0 && select < 0) {
                 searchDom.focus();
                 searchDom.select();
                 return
@@ -149,6 +156,7 @@
             if (cb) inset(cb);
         } else if (e.key === 'Escape') {
             if (editingSet.size > 0) return;
+            e.preventDefault();
 
             select = -1;
             Window.Hide()
@@ -212,16 +220,19 @@
     /**
      *  @param {string} w 区分 pinned 还是 cblist
      *  @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
-     *  @param {number} index
      */
-    const togglePin = async (w, cb, index) => {
+    const togglePin = async (w, cb) => {
         if (w === 'pinned') {
-            // 取消钉住：index 就是 store 索引，直接从 pinned 和 store 删除
-            pinned.splice(index, 1);
-            await deleteLocal(index);
+            // 取消钉住：用 id 定位当前 pinned 下标（即 store 索引），再从 pinned 和 store 删除
+            const idx = pinned.findIndex(c => c.id === cb.id);
+            if (idx < 0) return;
+            pinned.splice(idx, 1);
+            await deleteLocal(idx);
         } else {
-            // 钉住：从 cblist 移除，保存到 store
-            cblist.splice(index, 1);
+            // 钉住：用 id 从 cblist 移除，保存到 store
+            const idx = cblist.findIndex(c => c.id === cb.id);
+            if (idx < 0) return;
+            cblist.splice(idx, 1);
             await saveLocal($state.snapshot(cb));
             pinned.unshift(cb);
         }
@@ -229,16 +240,52 @@
 
     /**
      * @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
-     * @param {number} index
      */
-    const remove = (cb, index) => {
-        cblist.splice(index, 1);
+    const remove = (cb) => {
+        const idx = cblist.findIndex(c => c.id === cb.id);
+        if (idx < 0) return;
+        cblist.splice(idx, 1);
         editingSet.delete(cb);
     };
 
     /** @type {Element} */
     let listDom;
     let hasScrollbar = $state(false);
+
+    // 详情窗口编辑保存回写
+    Events.On('detail-save', (event) => {
+        const {id, text, HTML} = event.data;
+        // 先查 pinned，再查 cblist
+        let item = pinned.find(c => c.id === id);
+        const inStore = !!item;
+        if (!item) item = cblist.find(c => c.id === id);
+        if (!item) return;
+
+        item.text = text;
+        if (HTML) item.HTML = HTML;
+
+        // pinned 条目同步 store
+        if (inStore) {
+            updateStoreAll($state.snapshot(pinned));
+        }
+    });
+
+    // 详情窗口删除
+    Events.On('detail-delete', (event) => {
+        const {id} = event.data;
+        let idx = pinned.findIndex(c => c.id === id);
+        if (idx >= 0) {
+            pinned.splice(idx, 1);
+            deleteLocal(idx);
+            return;
+        }
+        idx = cblist.findIndex(c => c.id === id);
+        if (idx >= 0) {
+            const item = cblist[idx];
+            cblist.splice(idx, 1);
+            editingSet.delete(item);
+        }
+    });
     onMount(() => {
         // 加载 store 数据，初始化 pinned（顺序与 store 一致）
         Fetch('/cb/getlocal').then((res) => {
@@ -287,7 +334,7 @@
             <Card {cb}
                   select={cbi === select}
                   pinned
-                  onpin={() => togglePin('pinned',cb,cbi)}
+                  onpin={() => togglePin('pinned',cb)}
                   oninsert={() => inset(cb)}
                   oneditstate={(c, editing) => {
                       if (editing) editingSet.add(c);
@@ -299,8 +346,8 @@
         {#each listView as cb, cbi (cb)}
             <Card {cb}
                   select={cbi + pinnedView.length === select}
-                  onpin={() => togglePin('cblist',cb,cbi)}
-                  ondelete={() => remove(cb,cbi)}
+                  onpin={() => togglePin('cblist',cb)}
+                  ondelete={() => remove(cb)}
                   oninsert={() => inset(cb)}
                   oneditstate={(c, editing) => {
                       if (editing) editingSet.add(c);
@@ -328,7 +375,7 @@
 
     .bar {
         display: flex;
-        justify-content: space-around;
+        justify-content: space-between;
         align-items: center;
         gap: 7px;
         flex: 0 0 auto;
@@ -354,7 +401,8 @@
     }
 
     .search {
-        flex-shrink: 1;
+        flex: 1;
+        max-width: 300px;
         display: flex;
         align-items: center;
         --wails-draggable: no-drag;

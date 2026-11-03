@@ -1,8 +1,10 @@
 <script>
-    import ShadowHtml from './shadow-html.svelte';
-    import ToolRail from './tool-rail.svelte';
+    import ToolRail from '#lib/components/tool-rail.svelte';
     import {localPathReplace} from "#lib/file.js";
-    import {cbInset} from "#lib/cb.js";
+    import {cbInset, withKind} from "#lib/cb.js";
+    import {Fetch} from "#lib/fetch.js";
+    import {Events} from "@wailsio/runtime";
+    import CbItem from '#lib/components/cbItem.svelte';
 
     /**
      * @type {{
@@ -20,21 +22,7 @@
     /** 'none' | 'text' | 'html' */
     let editing = $state('none');
 
-    let kind = $derived.by(() => {
-        if (cb.hasHTML) return 'html';
-        if (cb.hasImage) return 'image';
-        if (cb.hasFiles) return 'files';
-        if (cb.hasRTF) return 'rtf';
-        return 'text';
-    })
-
-    let label = $derived.by(()=> {
-        if (cb.hasHTML) return 'HTML';
-        if (cb.hasImage) return '图片';
-        if (cb.hasFiles) return '文件';
-        if (cb.hasRTF) return 'RTF';
-        return '文本';
-    })
+    let {kind, label} = $state(withKind(cb))
 
     // Go 的 []byte 过 JSON 是 base64，可直接拼 data URL
     const imgSrc = $derived.by(() => {
@@ -71,12 +59,13 @@
 
     const tagClick = (e) => {
         e.stopPropagation()
-        if(kind === 'html'){
-            label='文本'
-            kind='text'
-        }else if (kind === 'text'){
-            label='HTML'
-            kind='html'
+        console.log('tagClick', cb)
+        if (kind === 'html') {
+            label = '文本'
+            kind = 'text'
+        } else if (kind === 'text' && cb.hasHTML) {
+            label = 'HTML'
+            kind = 'html'
         }
     }
 
@@ -95,34 +84,32 @@
 
         cbInset('files', body)
     }
+
+    const openWindow = () => {
+        Fetch('/window/create', {method: 'POST'}).then((windowName) => {
+            Events.Once("detail-open", (res) => {
+                if (res.sender === windowName) {
+                    Events.Emit("detail-opened", $state.snapshot(cb))
+                }
+            })
+        })
+    }
 </script>
 
 <article class={['card', { pinned } ,{select}]}>
     <div class="body" onclick={onBodyClick}>
         <span class="tag" onclick={tagClick}>{label}</span>
 
-        {#if kind === 'html'}
-            {#if editing === 'html'}
-                <textarea class="editor" value={htmlSource} oninput={onHtmlInput}></textarea>
-            {:else}
-                <ShadowHtml html={htmlSource}/>
-            {/if}
-        {:else if kind === 'image'}
-            <!-- 在接受数据的时候遇到只包含图片的html或者file会转换成图片显示 -->
-            <img class="image" src={imgSrc} alt="">
-        {:else if kind === 'files'}
-            <ul class="files">
-                {#each cb.files as file (file)}
-                    <li onclick={(e) => fileClick(file,e)} title='单文件粘贴'>{file}</li>
-                {/each}
-            </ul>
-        {:else if kind === 'rtf'}
-            <p class="text muted">RTF 富文本（暂不渲染）</p>
-        {:else if editing === 'text'}
-            <textarea class="editor" value={cb.text} oninput={onTextInput}></textarea>
-        {:else}
-            <p class="text">{cb.text}</p>
-        {/if}
+        <CbItem
+                {cb}
+                {kind}
+                {editing}
+                {imgSrc}
+                {htmlSource}
+                {onHtmlInput}
+                {onTextInput}
+                {fileClick}
+        />
     </div>
 
     <ToolRail
@@ -133,6 +120,7 @@
             onsave={() => console.log('save', cb)}
             {onreveal}
             {ondelete}
+            {openWindow}
     />
 </article>
 
@@ -194,97 +182,5 @@
         text-transform: uppercase;
         cursor: default;
         user-select: none;
-    }
-
-    .text {
-        max-height: 120px;
-        overflow: hidden;
-        color: #2b2f3c;
-        font: 13px/1.55 system-ui, 'Segoe UI', sans-serif;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-        overflow: auto;
-    }
-
-    .muted {
-        color: #98a0b4;
-    }
-
-    .image {
-        max-width: 100%;
-        max-height: 140px;
-        object-fit: cover;
-    }
-
-    .files {
-        color: #4a5169;
-        font: 12px/1.5 ui-monospace, Consolas, monospace;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-    }
-
-    .files li {
-        overflow-wrap: anywhere;
-        cursor: default;
-        list-style: none;
-        position: relative;
-        padding: 0 5px;
-        padding-left: 25px;
-        padding-bottom: 4px;
-        margin-bottom: 4px;
-
-        &:last-of-type {
-            padding-bottom: 4px;
-            margin-bottom: 4px;
-        }
-
-        &:hover {
-            background: #f1f3f9;
-            border-radius: 4px;
-        }
-
-        &:before {
-            position: absolute;
-            left: 2px;
-            top: 0;
-            content: '';
-            background-image: url("/imgs/wfjmjw.png");
-            background-size: contain;
-            background-repeat: no-repeat;
-            width: 20px;
-            height: 20px;
-        }
-
-        &:after {
-            position: absolute;
-            bottom: 0;
-            left: 25px;
-            content: '';
-            height: 1px;
-            width: calc(100% - 25px);
-            border-bottom: 1px dashed #e8eaf2;
-        }
-
-        &:last-of-type:after {
-            display: none;
-        }
-
-    }
-
-    .editor {
-        width: 100%;
-        min-height: 80px;
-        padding: 6px 8px;
-        border: 1px solid #d8ddeb;
-        border-radius: 6px;
-        color: #2b2f3c;
-        font: 12px/1.5 ui-monospace, Consolas, monospace;
-        resize: vertical;
-    }
-
-    .editor:focus {
-        border-color: #2f6df6;
-        outline: none;
     }
 </style>

@@ -50,6 +50,8 @@ import (
 var selfLock atomic.Uint32
 
 type RecordJs struct {
+	Id string `json:"id"`
+
 	HasText  bool     `json:"hasText"` // 含纯文本
 	Text     string   `json:"text"`
 	HasImage bool     `json:"hasImage"` // 含图片
@@ -84,6 +86,8 @@ var ErrNoData = errors.New("cb: 剪贴板中不存在该格式的数据")
 // Record 是某一时刻剪贴板内容的快照，由 Read() 一次性读出。
 // 先用 Has* 字段判断快照里有哪些数据，再调用对应的 Get* 方法取出。
 type Record struct {
+	Id string `json:"id"`
+
 	HasText  bool // 含纯文本
 	HasImage bool // 含图片
 	HasHTML  bool // 含 HTML 富文本
@@ -118,6 +122,8 @@ func Read() (*Record, error) {
 	r.HasHTML = r.RawHTML != nil
 	r.HasRTF = r.RawRTF != nil
 	r.HasFiles = r.RawFiles != nil
+
+	r.Id = newId()
 	return r, nil
 }
 
@@ -328,6 +334,7 @@ func WriteAll(rec *Record) error {
 
 func (r *Record) transform() RecordJs {
 	rc := RecordJs{
+		Id:       r.Id,
 		HasText:  r.HasText,
 		HasImage: r.HasImage,
 		HasHTML:  r.HasHTML,
@@ -359,6 +366,7 @@ func (r *Record) transform() RecordJs {
 
 func (r *RecordJs) transform() (*Record, error) {
 	rec := Record{
+		Id:       r.Id,
 		HasText:  r.HasText,
 		HasImage: r.HasImage,
 		HasHTML:  r.HasHTML,
@@ -433,4 +441,8 @@ func (r *RecordJs) transform() (*Record, error) {
 	}
 
 	return &rec, nil
+}
+
+func newId() string {
+	return fmt.Sprintf("%d", time.Now().UnixMilli())
 }

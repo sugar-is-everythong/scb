@@ -1,7 +1,6 @@
 import {Fetch} from "#lib/fetch.js";
 import {Window} from "@wailsio/runtime";
 import {toRealPath} from "#lib/file.js";
-import {snapshot} from "$app/navigation";
 
 // 写入剪贴板
 export const cbInset = (url, body, onsuccess, onerror) => {
@@ -35,4 +34,21 @@ export const saveLocal = (record) => {
 // 从 store 删除指定 index
 export const deleteLocal = (index) => {
     return Fetch('/cb/deletelocal', {method: 'POST', body: JSON.stringify({index})})
+}
+
+/**
+ * 全量覆盖 store。传入的 records 顺序与 All() 一致（最新在前），内部反转后发给后端
+ * @param {import('#bindings/scb/cb/models.ts').RecordJs[]} records
+ */
+export const updateStoreAll = (records) => {
+    return Fetch('/cb/setalllocal', {method: 'POST', body: JSON.stringify([...records].reverse())})
+}
+
+export const withKind = (cb) => {
+    if (cb === undefined) return {}
+    if (cb.hasHTML) return {kind: 'html', label: 'HTML'};
+    if (cb.hasImage) return {kind: 'image', label: '图片'};
+    if (cb.hasFiles) return {kind: 'files', label: '文件'};
+    if (cb.hasRTF) return {kind: 'rtf', label: 'RTF'};
+    return {kind: 'text', label: '文本'};
 }

@@ -14,6 +14,9 @@ func (s *GinService) setupRoutes() {
 
 	fg := s.ginEngine.Group("/file")
 	fileGroup(fg)
+
+	wg := s.ginEngine.Group("/window")
+	windowGroup(wg)
 }
 
 func cbGroup(g *gin.RouterGroup) {
@@ -46,4 +49,8 @@ func fileGroup(g *gin.RouterGroup) {
 	for _, pan := range tools.GetPanName() {
 		g.StaticFS("/"+pan, http.Dir(pan+":\\"))
 	}
+}
+
+func windowGroup(g *gin.RouterGroup) {
+	g.POST("create", create)
 }

@@ -18,7 +18,7 @@
 
 <style>
     .html {
-        max-height: 300px;
+        max-height: 250px;
         overflow: auto;
     }
 </style>
