@@ -3,7 +3,7 @@
     import Card from './clip/card.svelte';
     import {onMount} from 'svelte';
     import {localPathReplace, toRealPath} from "#lib/file.js";
-    import {cbInset, deleteLocal, saveLocal, updateStoreAll} from "#lib/cb.js";
+    import {cbInset, deleteLocal, saveLocal, updateStoreAll, withKind} from "#lib/cb.js";
     import {Fetch} from "#lib/fetch.js";
 
     /** @type {import('#bindings/scb/cb/models.ts').RecordJs[]} */
@@ -67,8 +67,7 @@
     let keyword = $state('');
 
     /** @param {import('#bindings/scb/cb/models.ts').RecordJs} cb */
-    const kindOf = (cb) =>
-        cb.hasHTML ? 'html' : cb.hasFiles ? 'files' : cb.hasRTF ? 'rtf' : cb.hasImage ? 'image' : 'text';
+    const kindOf = (cb) => withKind(cb).kind
 
     /** 只按 text 字段做不区分大小写的子串匹配 */
     const matchKeyword = (cb) => {
@@ -130,6 +129,11 @@
 
     /** @param {KeyboardEvent} e */
     const documentOnkeydown = (e) => {
+        if (e.key === 'Escape' && document.activeElement === searchDom) {
+            keyword = '';
+            searchDom.blur();
+            return;
+        }
         if (e.isComposing || inInput(e)) return;
 
         if (e.key === 'ArrowDown') {
