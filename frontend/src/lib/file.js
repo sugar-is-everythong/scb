@@ -248,7 +248,7 @@ export const getFileIcon = (file, pathRouets) => {
 
 // 把图片的本地路径替换为服务器路径
 export const localPathReplace = (path) => {
-    if (path.includes("file:///")) path = path.replaceAll("file:///", '/wg/file/').replace(':\\', '/').replace(':/', '/')
+    if (path.includes("file:///")) path = path.replaceAll("file:///", '/wg/file/').replaceAll(':\\', '/').replace(':/', '/')
     // 解码 URL 编码的字符(如 %20 -> 空格)
     try {
         path = decodeURIComponent(path)

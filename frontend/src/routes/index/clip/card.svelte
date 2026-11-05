@@ -59,7 +59,6 @@
 
     const tagClick = (e) => {
         e.stopPropagation()
-        console.log('tagClick', cb)
         if (kind === 'html') {
             label = '文本'
             kind = 'text'

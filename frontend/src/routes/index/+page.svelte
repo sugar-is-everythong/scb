@@ -12,12 +12,15 @@
         let cb = event.data;
         console.log(cb)
 
-        // html 里 只有纯图片的时候，把 html 转成图片数组拆成多条复制，因为系统复制的时候就不支持多张图片
+/*         // html 里 只有纯图片的时候，把 html 转成图片数组拆成多条复制，因为系统复制的时候就不支持多张图片
         if (cb.hasHTML) {
             const parser = new DOMParser()
             const doc = parser.parseFromString(cb.HTML?.Fragment, 'text/html')
             const children = doc.body.children
-            const onlyImg = children.length > 0 && Array.from(children).every(el => el.tagName === 'IMG')
+			console.log(children);
+            const onlyImg = children.length > 0
+                && Array.from(children).every(el => el.tagName === 'IMG')
+                && !doc.body.textContent.trim() // 文字是文本节点不在 children 里，要单独判断，否则 <img>文字 会被当成纯图片丢掉文字
             if (onlyImg) {
                 let images = []
                 for (let i = 0; i < children.length; i++) {
@@ -38,7 +41,7 @@
                 cb = images;
                 console.log(cb)
             }
-        }
+        } */
 
         if (Array.isArray(cb)) cblist.unshift(...cb)
         else cblist.unshift(cb)
@@ -198,7 +201,7 @@
                 body = base64ToBytes(img.split(',')[1]);
             } else { // 本地的图片类型
                 type = 'files';
-                body = JSON.stringify(toRealPath(img))
+                body = JSON.stringify([toRealPath(img)])
             }
 
         } else if (!cb.text) {
