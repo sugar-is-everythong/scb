@@ -124,7 +124,7 @@
                 {onHtmlInput}
                 {onTextInput}
                 {fileClick}
-                --max-height="100%"
+				inDetail={true}
         />
     </div>
 

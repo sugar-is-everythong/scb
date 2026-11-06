@@ -1,11 +1,13 @@
 <script>
     import ShadowHtml from "#lib/components/shadow-html.svelte";
+    import { setContext } from "svelte";
 
-    let {cb, kind, editing, htmlSource, imgSrc, onHtmlInput, onTextInput, fileClick, ...others} = $props();
+    let {cb, kind, editing, htmlSource, imgSrc, onHtmlInput, onTextInput, fileClick, inDetail=false, ...others} = $props();
+	setContext("inDetail",inDetail)
 </script>
 
 {#if cb !== undefined}
-    <div class="cb-item-box">
+    <div class="cb-item-box" style:height={inDetail ? '100%' : undefined}>
 
         {#if kind === 'html'}
             {#if editing === 'html'}
@@ -39,7 +41,6 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        height: var(--max-height, auto);
     }
 
     .text {
@@ -121,7 +122,8 @@
 
     .editor {
         width: 100%;
-        min-height: 80px;
+        min-height: var(--height , 80px);
+        height: 100%;
         padding: 6px 8px;
         border: 1px solid #d8ddeb;
         border-radius: 6px;
