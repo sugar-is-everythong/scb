@@ -2,11 +2,9 @@ package service
 
 import (
 	"net/http"
-	"os"
 	"scb/cb"
 	"scb/global"
 	"scb/tools"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -130,42 +128,22 @@ func cbWriteImage(c *gin.Context) {
 		return
 	}
 
-	// 有 BUrl 就是网络图片
+	// 有 BUrl 就先解析成字节：内部 cb.URL/file/ 地址读盘，其余按外网链接下载，
+	// 分流逻辑统一收进 cb.ResolveImageBytes，与 Transform 走同一条回源路径
 	if q.BUrl != "" {
-		if strings.HasPrefix(q.BUrl, cb.URL) {
-			// http://wails.localhost:9245/wg/file/C\Users\A***dd4.png
-			str := strings.Replace(q.BUrl, cb.URL+"/file/", "", 1)
-			str1 := str[0:1]
-			str2 := str[1:]
-			str = str1 + ":" + str2
-
-			img, err := os.ReadFile(str)
-			if err != nil {
-				FailWithMsg(c, err.Error())
-				return
-			}
-
-			if err := cb.WriteImage(img); err != nil {
-				FailWithMsg(c, err.Error())
-				return
-			}
-
-			OK_(c)
-			return
-		}
-
-		imgData, err := tools.GetWebImage(q.BUrl)
+		img, err := cb.ResolveImageBytes(q.BUrl)
 		if err != nil {
 			FailWithMsg(c, err.Error())
 			return
 		}
 
-		if err := cb.WriteImage(imgData); err != nil {
+		if err := cb.WriteImage(img); err != nil {
 			FailWithMsg(c, err.Error())
 			return
 		}
 
 		OK_(c)
+		return
 	}
 
 	if img, has := cb.ImgArray.Find(func(a any) bool { return a.(cb.LuaArrImage).Id == q.Id }); q.Id != "" && has {

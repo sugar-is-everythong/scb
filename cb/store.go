@@ -3,78 +3,78 @@
 package cb
 
 import (
-	"encoding/gob"
-	"io"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"scb/global"
 	"sync"
-	"time"
 )
 
 // Store 全局实例，由 init() 初始化
 var Store *StoreType
 
 func init() {
-	exe, _ := os.Executable()
-	dir := filepath.Dir(exe)
-	Store, _ = NewStore(filepath.Join(dir, "local", "store.gob"))
+	var err error
+	Store, err = NewStore(filepath.Join(global.Local, "store"))
+	if err != nil {
+		panic("cb: 历史索引初始化失败: " + err.Error())
+	}
 }
 
-// Entry 是一条历史记录，组合 Record 并加上时间戳。
-type Entry struct {
-	Record
-	Time time.Time
-}
-
-// StoreType 把历史存在内存数组里，并在每次追加后整体写回文件。
+// StoreType 把历史存在内存数组里（旧→新），每次变更后整体序列化为 JSON 落盘。
+// 二进制成员不再进索引：图片以记录 id 为文件名单独落在数据目录，
+// 记录里只存 cb.URL 形式的可直接访问地址，落盘体量只有纯文本。
 type StoreType struct {
 	mu      sync.Mutex
-	entries []Entry
-	path    string
+	entries []RecordJs
+	path    string // 索引文件路径，空表示不落盘
 }
 
-// NewStore 创建存储并从 path 读回已有历史
+// NewStore 创建存储并从 path 读回已有历史。
+// path 是"无后缀文本文件"约定：内容就是标准 JSON 数组，只是不挂 .json 后缀。
 func NewStore(path string) (*StoreType, error) {
 	s := &StoreType{path: path}
 	if path == "" {
 		return s, nil
 	}
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return s, nil
 		}
 		return nil, err
 	}
-	defer f.Close()
-	if err := gob.NewDecoder(f).Decode(&s.entries); err != nil && err != io.EOF {
-		f.Close()
-		os.Remove(path)
-		return s, nil
+	if len(data) > 0 {
+		if err := json.Unmarshal(data, &s.entries); err != nil {
+			// 解析失败保留文件供人工排查（文本格式的意义所在），只从空历史继续；
+			// 不能删文件，否则用户手改出一个语法错误就会把全部历史连带清空。
+			fmt.Println("cb: 历史索引解析失败，从空历史继续:", err)
+			s.entries = nil
+		}
 	}
 	return s, nil
 }
 
-// SetStoreR 以 Record 类型存储
-func (s *StoreType) SetStoreR(r *Record) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	e := Entry{Record: *r, Time: time.Now()}
-	s.entries = append(s.entries, e)
-	return s.flushLocked()
-}
-
-// SetStoreRJ 以 RecordJs 类型存储，先转成 Record
+// SetStoreRJ 追加一条记录：先把内存图片与外部文件持久化到数据目录并改写地址，
+// 再入数组整体落盘。存入的就是 RecordJs 本身，不再经 Record 中转。
+// 顺序不能反：persistImage 先拷 BUrl 对应的图并改写 files 匹配项，
+// persistFiles 再处理剩余外部文件，已入自家目录的会自动跳过，同一文件不会拷两遍。
 func (s *StoreType) SetStoreRJ(r *RecordJs) error {
-	rec, err := r.Transform()
-	if err != nil {
+	rec := *r
+	if err := persistImage(&rec); err != nil {
+		// 落盘中途失败：记录不会入库，已写的图片/文件副本必须清掉，否则成孤儿文件
+		removeLocalImageFiles(rec.Id)
+		return err
+	}
+	if err := persistFiles(&rec); err != nil {
+		removeLocalImageFiles(rec.Id)
 		return err
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	e := Entry{Record: *rec, Time: time.Now()}
-	s.entries = append(s.entries, e)
+	s.entries = append(s.entries, rec)
 	return s.flushLocked()
 }
 
@@ -84,12 +84,13 @@ func (s *StoreType) All() []RecordJs {
 	defer s.mu.Unlock()
 	out := make([]RecordJs, len(s.entries))
 	for i, e := range s.entries {
-		out[len(s.entries)-1-i] = e.Record.transform()
+		out[len(s.entries)-1-i] = e
 	}
 	return out
 }
 
-// Delete 删除指定索引的条目（索引基于 All() 返回的顺序，新记录在前）
+// Delete 删除指定索引的条目（索引基于 All() 返回的顺序，新记录在前），
+// 并清掉本程序写在数据目录里的图片文件。
 func (s *StoreType) Delete(index int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -98,27 +99,22 @@ func (s *StoreType) Delete(index int) error {
 	}
 	// All() 返回倒序，index 0 对应 entries 最后一个
 	realIndex := len(s.entries) - 1 - index
+	e := s.entries[realIndex]
 	s.entries = append(s.entries[:realIndex], s.entries[realIndex+1:]...)
+	removeLocalImageFiles(e.Id)
 	return s.flushLocked()
 }
 
-// SetAll 用 RecordJs 数组覆盖所有存储
+// SetAll 用 RecordJs 数组覆盖所有存储（入参顺序为旧→新，与 All() 相反）
 func (s *StoreType) SetAll(records []RecordJs) error {
-	entries := make([]Entry, 0, len(records))
-	for _, r := range records {
-		rec, err := r.Transform()
-		if err != nil {
-			return err
-		}
-		entries = append(entries, Entry{Record: *rec, Time: time.Now()})
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.entries = entries
+	s.entries = records
 	return s.flushLocked()
 }
 
-// flushLocked 把当前数组整体写回 gob 文件
+// flushLocked 把当前数组整体写回索引文件。
+// 图片字节已拆出单独落盘，索引只剩纯文本，全量重写的体量恒定且小。
 func (s *StoreType) flushLocked() error {
 	if s.path == "" {
 		return nil
@@ -126,17 +122,12 @@ func (s *StoreType) flushLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0755); err != nil {
 		return err
 	}
-	tmp := s.path + ".tmp"
-	f, err := os.Create(tmp)
+	data, err := json.Marshal(s.entries)
 	if err != nil {
 		return err
 	}
-	if err := gob.NewEncoder(f).Encode(s.entries); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmp)
-		return err
-	}
-	if err := f.Close(); err != nil {
+	tmp := s.path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0644); err != nil {
 		_ = os.Remove(tmp)
 		return err
 	}

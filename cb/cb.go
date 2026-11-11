@@ -354,15 +354,36 @@ func (r *RecordJs) Transform() (*Record, error) {
 	}
 
 	if r.HasImage {
-		img, has := ImgArray.Find(func(a any) bool {
+		// 先判 BUrl：非空时内部 /file/ 地址读盘、外网链接下载（ResolveImageBytes 分流）；
+		// BUrl 为空才是纯位图，退回内存 LRU 缓存。
+		var imgBytes []byte
+		if r.Image.BUrl != "" {
+			data, err := ResolveImageBytes(r.Image.BUrl)
+			if err != nil {
+				return nil, fmt.Errorf("cb: 图片加载失败: %w", err)
+			}
+			imgBytes = data
+		} else if img, has := ImgArray.Find(func(a any) bool {
 			return r.Id == a.(LuaArrImage).Id
-		})
+		}); has {
+			imgBytes = img.(LuaArrImage).BData
+		}
 
-		// 缓存未命中（如程序重启后 LRU 已清空）时图片成员直接留空，
-		// 不能继续往下取 img：img 是 nil 接口，断言会 panic。
-		if has {
-			// 从图片缓存中找到的只有png，因为我当时只存了png
-			rec.RawPNG = img.(LuaArrImage).BData
+		if len(imgBytes) > 0 {
+			// 原图是 PNG 直接用作 "PNG" 格式字节，其余转码（与 WriteImage 的约定一致）
+			if isPNG(imgBytes) {
+				rec.RawPNG = imgBytes
+			} else {
+				src, _, err := image.Decode(bytes.NewReader(imgBytes))
+				if err != nil {
+					return nil, fmt.Errorf("解析图片失败: %w", err)
+				}
+				var pngBuf bytes.Buffer
+				if err := png.Encode(&pngBuf, src); err != nil {
+					return nil, fmt.Errorf("cb: PNG 编码失败: %w", err)
+				}
+				rec.RawPNG = pngBuf.Bytes()
+			}
 
 			// 把png转成dib
 			DIBimg, _, err := image.Decode(bytes.NewReader(rec.RawPNG))

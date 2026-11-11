@@ -186,23 +186,32 @@
     };
 
     /**
+     * 从 store 重新拉取钉住列表
+     */
+    const reloadPinned = async () => {
+        const res = await Fetch('/cb/getlocal');
+        pinned.length = 0;
+        pinned.push(...res);
+    };
+
+    /**
      *  @param {string} w 区分 pinned 还是 cblist
      *  @param {import('#bindings/scb/cb/models.ts').RecordJs} cb
      */
     const togglePin = async (w, cb) => {
         if (w === 'pinned') {
-            // 取消钉住：用 id 定位当前 pinned 下标（即 store 索引），再从 pinned 和 store 删除
+            // 取消钉住：用 id 定位当前 pinned 下标（即 store 索引）
             const idx = pinned.findIndex(c => c.id === cb.id);
             if (idx < 0) return;
-            pinned.splice(idx, 1);
             await deleteLocal(idx);
+            await reloadPinned();
         } else {
             // 钉住：用 id 从 cblist 移除，保存到 store
             const idx = cblist.findIndex(c => c.id === cb.id);
             if (idx < 0) return;
             cblist.splice(idx, 1);
             await saveLocal($state.snapshot(cb));
-            pinned.unshift(cb);
+            await reloadPinned();
         }
     };
 
@@ -243,8 +252,7 @@
         const {id} = event.data;
         let idx = pinned.findIndex(c => c.id === id);
         if (idx >= 0) {
-            pinned.splice(idx, 1);
-            deleteLocal(idx);
+            deleteLocal(idx).then(reloadPinned).catch(e => console.error('删除失败', e));
             return;
         }
         idx = cblist.findIndex(c => c.id === id);
@@ -256,9 +264,7 @@
     });
     onMount(() => {
         // 加载 store 数据，初始化 pinned（顺序与 store 一致）
-        Fetch('/cb/getlocal').then((res) => {
-            pinned.push(...res);
-        })
+        reloadPinned();
 
         const observer = new ResizeObserver(() => {
             hasScrollbar = listDom.scrollHeight > listDom.clientHeight;
