@@ -56,7 +56,6 @@ var (
 // 富文本与图片对应的注册格式，进程启动时注册一次
 var (
 	formatHTML = registerClipboardFormat("HTML Format")
-	formatRTF  = registerClipboardFormat("Rich Text Format")
 	formatPNG  = registerClipboardFormat("PNG")
 )
 
@@ -179,7 +178,7 @@ func writeFormat(cf uint32, payload []byte) error {
 }
 
 // writeFormats 在一次剪贴板会话内写入多个格式：Empty 一次、Set 多次，
-// 使 text/html/rtf 等多格式能同时在场，粘贴方按需取最优格式。
+// 使 text/html/图片 等多格式能同时在场，粘贴方按需取最优格式。
 // 注意：写入前先清空剪贴板，会覆盖其他应用已有的剪贴板内容。
 func writeFormats(items map[uint32][]byte) error {
 	valid := make(map[uint32][]byte, len(items))

@@ -5,7 +5,7 @@
 // 支持的格式：
 //   - 文本：CF_UNICODETEXT（UTF-16）
 //   - 图片：CF_DIB 与 PNG 字节互转（仅支持 24/32 位未压缩位图）
-//   - 富文本：CF_HTML（"HTML Format" 注册格式，含标准头部偏移）与 RTF（"Rich Text Format" 注册格式）
+//   - 富文本：CF_HTML（"HTML Format" 注册格式，含标准头部偏移）
 //   - 文件：CF_HDROP（资源管理器可识别的文件列表，粘贴即复制文件）
 //
 // 用法示例：
@@ -14,7 +14,6 @@
 //	cb.WriteText("你好")
 //	cb.WriteImage(pngBytes)
 //	cb.WriteHTML(&cb.HTML{Fragment: "<b>加粗</b>"})
-//	cb.WriteRTF(rtfBytes)
 //	cb.WriteFiles([]string{`D:\a.txt`, `D:\b.png`})
 //	cb.WriteAll(rec) // 多格式一次写入，如"粘贴回原条目"
 //
@@ -55,8 +54,6 @@ type RecordJs struct {
 	Image    cbImage  `json:"image"`
 	HasHTML  bool     `json:"hasHTML"` // 含 HTML 富文本
 	HTML     *HTML    `json:"HTML"`
-	HasRTF   bool     `json:"hasRTF"` // 含 RTF 富文本
-	RTF      []byte   `json:"RTF"`
 	HasFiles bool     `json:"hasFiles"` // 含文件列表
 	Files    []string `json:"files"`
 }
@@ -93,14 +90,12 @@ type Record struct {
 	HasText  bool // 含纯文本
 	HasImage bool // 含图片
 	HasHTML  bool // 含 HTML 富文本
-	HasRTF   bool // 含 RTF 富文本
 	HasFiles bool // 含文件列表
 
 	RawText  []byte // CF_UNICODETEXT 原始 UTF-16 字节
 	RawImage []byte // CF_DIB 原始字节
 	RawPNG   []byte // "PNG" 注册格式的现成 PNG 字节（部分来源会同时提供）
 	RawHTML  []byte // "HTML Format" 原始字节
-	RawRTF   []byte // "Rich Text Format" 原始字节
 	RawFiles []byte // CF_HDROP 原始字节
 }
 
@@ -113,7 +108,6 @@ func Read() (*Record, error) {
 		r.RawImage = readLocked(cfDIB)
 		r.RawPNG = readLocked(formatPNG)
 		r.RawHTML = readLocked(formatHTML)
-		r.RawRTF = readLocked(formatRTF)
 		r.RawFiles = readLocked(cfHDROP)
 		return nil
 	}); err != nil {
@@ -122,7 +116,6 @@ func Read() (*Record, error) {
 	r.HasText = r.RawText != nil
 	r.HasImage = r.RawImage != nil || r.RawPNG != nil
 	r.HasHTML = r.RawHTML != nil
-	r.HasRTF = r.RawRTF != nil
 	r.HasFiles = r.RawFiles != nil
 
 	r.Id = newId()
@@ -162,14 +155,6 @@ func (r *Record) GetHTML() (*HTML, error) {
 		return nil, ErrNoData
 	}
 	return parseCFHTML(r.RawHTML)
-}
-
-// GetRTF 返回快照中 RTF 原始字节。
-func (r *Record) GetRTF() ([]byte, error) {
-	if !r.HasRTF {
-		return nil, ErrNoData
-	}
-	return r.RawRTF, nil
 }
 
 // GetFiles 返回快照中的文件路径列表（绝对路径）。
@@ -287,11 +272,6 @@ func WriteHTML(h *HTML) error {
 	return writeFormat(formatHTML, buildCFHTML(h))
 }
 
-// WriteRTF 将 RTF 原始字节写入剪贴板
-func WriteRTF(rtf []byte) error {
-	return writeFormat(formatRTF, rtf)
-}
-
 // WriteFiles 将文件列表写入剪贴板，相对路径会转为绝对路径。
 // 注意：仅写入文件路径列表，粘贴方（如资源管理器）会按复制文件处理；
 // 若要支持"剪切"语义还需配合 DragLeave/降效语义消息，此处未实现。
@@ -304,7 +284,7 @@ func WriteFiles(paths []string) error {
 }
 
 // WriteAll 将一条记录的多格式数据一次会话同时写入剪贴板
-// （文本 + 图片 + HTML + RTF + 文件可同在场，粘贴方按需取最优格式），
+// （文本 + 图片 + HTML + 文件可同在场，粘贴方按需取最优格式），
 // 典型用法是传入 Read() 得到的快照实现"粘贴回原条目"。全空记录返回错误。
 func WriteAll(rec *Record) error {
 	if rec == nil {
@@ -327,7 +307,6 @@ func (r *Record) transform() RecordJs {
 		HasText:  r.HasText,
 		HasImage: r.HasImage,
 		HasHTML:  r.HasHTML,
-		HasRTF:   r.HasRTF,
 		HasFiles: r.HasFiles,
 	}
 
@@ -357,7 +336,6 @@ func (r *RecordJs) Transform() (*Record, error) {
 		HasText:  r.HasText,
 		HasImage: r.HasImage,
 		HasHTML:  r.HasHTML,
-		HasRTF:   r.HasRTF,
 		HasFiles: r.HasFiles,
 		//RawHTML:  r.HTML, 额外转换，放在这里显示提醒我别忘了
 		//RawImage: r.Image, // 这里不一定有内容

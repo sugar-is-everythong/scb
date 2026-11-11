@@ -15,7 +15,6 @@ func TestCb(t *testing.T) {
 		fmt.Println("HasText:", rec.HasText,
 			"HasImage:", rec.HasImage,
 			"HasHTML:", rec.HasHTML,
-			"HasRTF:", rec.HasRTF,
 			"HasFiles:", rec.HasFiles)
 
 		if rec.HasText {

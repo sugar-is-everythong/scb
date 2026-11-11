@@ -6,7 +6,7 @@
     import {localPathReplace} from "#lib/file.js";
 
     /**
-     * @type import('#bindings/scb/cb/models.ts').RecordJs | undefined
+     * @type import('#bindings/scb/cb/models.ts').RecordJs
      */
     let cb = $state()
     Events.Emit("detail-window-open")
@@ -100,6 +100,7 @@
         Window.Close();
     }
 
+    /** @param {MouseEvent} e */
     const tagClick = (e) => {
         e.stopPropagation()
         console.log('tagClick', cb)

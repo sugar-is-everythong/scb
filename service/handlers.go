@@ -16,7 +16,6 @@ type recordInfo struct {
 	HasText  bool `json:"hasText"`
 	HasImage bool `json:"hasImage"`
 	HasHTML  bool `json:"hasHTML"`
-	HasRTF   bool `json:"hasRTF"`
 	HasFiles bool `json:"hasFiles"`
 }
 
@@ -26,7 +25,6 @@ func infoOf(r *cb.Record) recordInfo {
 		HasText:  r.HasText,
 		HasImage: r.HasImage,
 		HasHTML:  r.HasHTML,
-		HasRTF:   r.HasRTF,
 		HasFiles: r.HasFiles,
 	}
 }
@@ -88,21 +86,6 @@ func cbGetHTML(c *gin.Context) {
 	})
 }
 
-// cbGetRTF GET /cb/rtf：当前剪贴板中的 RTF 富文本。
-func cbGetRTF(c *gin.Context) {
-	rec, err := cb.Read()
-	if err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	rtf, err := rec.GetRTF()
-	if err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	OkWithData(c, string(rtf))
-}
-
 // cbGetFiles GET /cb/files：当前剪贴板中的文件路径列表。
 func cbGetFiles(c *gin.Context) {
 	rec, err := cb.Read()
@@ -120,14 +103,15 @@ func cbGetFiles(c *gin.Context) {
 
 // ---------- 写入 ----------
 
-// cbWriteText POST /cb/text：请求体为要写入剪贴板的原始文本。
+// cbWriteText POST /cb/text：请求体为 JSON 字符串（前端 cbInset 统一对 body 做了 JSON.stringify）。
+// 必须用 ShouldBindJSON 反序列化取出真实文本，直接拿原始请求体会把引号与 \r\n\t 转义符原样写进剪贴板。
 func cbWriteText(c *gin.Context) {
-	data, err := c.GetRawData()
-	if err != nil {
-		FailWithMsg(c, err.Error())
+	var s string
+	if err := c.ShouldBindJSON(&s); err != nil {
+		FailWithMsg(c, "请求参数解析"+err.Error())
 		return
 	}
-	if err := cb.WriteText(string(data)); err != nil {
+	if err := cb.WriteText(s); err != nil {
 		FailWithMsg(c, err.Error())
 		return
 	}
@@ -234,20 +218,6 @@ func cbWriteHTML(c *gin.Context) {
 	}
 
 	if err := cb.WriteAll(r); err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	OK_(c)
-}
-
-// cbWriteRTF POST /cb/rtf：请求体为 RTF 原始字节。
-func cbWriteRTF(c *gin.Context) {
-	data, err := c.GetRawData()
-	if err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	if err := cb.WriteRTF(data); err != nil {
 		FailWithMsg(c, err.Error())
 		return
 	}
