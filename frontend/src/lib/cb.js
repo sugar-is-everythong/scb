@@ -4,13 +4,9 @@ import {toRealPath} from "#lib/file.js";
 
 // 写入剪贴板
 export const cbInset = (url, body, onsuccess, onerror) => {
-    Fetch(`/cb/${url}`, {method: 'POST', body})
+    Fetch(`/cb/${url}`, {method: 'POST', body: JSON.stringify(body)})
         .then(() => {
-            Window.Hide();
-            setTimeout(() => {
-                Fetch('/cb/inset');
-                onsuccess?.()
-            }, 1);
+            Fetch('/cb/inset');
         })
         .catch((e) => {
             console.error('写入剪贴板失败', e)
@@ -45,10 +41,10 @@ export const updateStoreAll = (records) => {
 }
 
 export const withKind = (cb) => {
+    // 对于纯净的类型要靠前放，比如即包含图片又包含html，肯定是<img src=''/>，这种情况下可能是 src="file:///" ，东处理一下西处理一下太麻烦了，图片应该排在前面
     if (cb === undefined) return {}
-    if (cb.hasHTML) return {kind: 'html', label: 'HTML'};
     if (cb.hasImage) return {kind: 'image', label: '图片'};
+    if (cb.hasHTML) return {kind: 'html', label: 'HTML'};
     if (cb.hasFiles) return {kind: 'files', label: '文件'};
-    if (cb.hasRTF) return {kind: 'rtf', label: 'RTF'};
     return {kind: 'text', label: '文本'};
 }

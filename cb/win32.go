@@ -224,6 +224,7 @@ func writeFormats(items map[uint32][]byte) error {
 	// 写入完成后再取序列号：EmptyClipboard 与每次 SetClipboardData 都会让它递增，
 	// 取到的值才是本次写入完成后剪贴板的真实状态标识。
 	selfLock.Store(currentSequence())
+
 	return err
 }
 
@@ -415,6 +416,38 @@ func parseCFHTML(b []byte) (*HTML, error) {
 		SourceURL: header["SourceURL"],
 		Version:   header["Version"],
 	}, nil
+}
+
+// buildCFHTML 把解析后的 HTML 重建为 CF_HTML 原始字节（parseCFHTML 的逆操作）。
+func buildCFHTML(h *HTML) []byte {
+	frag := []byte(h.Fragment)
+	prefix := []byte("<html>\r\n<body>\r\n<!--StartFragment-->")
+	suffix := []byte("<!--EndFragment-->\r\n</body>\r\n</html>")
+
+	version := h.Version
+	if version == "" {
+		version = "0.9"
+	}
+
+	var srcLine string
+	if h.SourceURL != "" {
+		srcLine = "SourceURL:" + h.SourceURL + "\r\n"
+	}
+
+	tpl := "Version:" + version + "\r\nStartHTML:%010d\r\nEndHTML:%010d\r\nStartFragment:%010d\r\nEndFragment:%010d\r\n" + srcLine
+	head := fmt.Sprintf(tpl, 0, 0, 0, 0)
+	startHTML := len(head)
+	startFragment := startHTML + len(prefix)
+	endFragment := startFragment + len(frag)
+	endHTML := endFragment + len(suffix)
+	head = fmt.Sprintf(tpl, startHTML, endHTML, startFragment, endFragment)
+
+	blob := make([]byte, 0, endHTML)
+	blob = append(blob, head...)
+	blob = append(blob, prefix...)
+	blob = append(blob, frag...)
+	blob = append(blob, suffix...)
+	return blob
 }
 
 // isHeaderKey 判断是否为 CF_HTML 头部字段名（纯 ASCII 字母）。

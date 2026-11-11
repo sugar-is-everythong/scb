@@ -24,12 +24,6 @@
 
     let {kind, label} = $state(withKind(cb))
 
-    // Go 的 []byte 过 JSON 是 base64，可直接拼 data URL
-    const imgSrc = $derived.by(() => {
-        if (cb.image?.startsWith('/') || cb.image?.startsWith('data:') || cb.image?.startsWith('blob:') || cb.image?.startsWith('http')) return cb.image
-        return `data:image/png;base64,${cb.image}`
-    });
-
     const htmlSource = $derived.by(() => {
         let hf = cb.HTML?.Fragment ?? ''
         return localPathReplace(hf)
@@ -57,6 +51,7 @@
         oninsert?.();
     };
 
+    /** @param {MouseEvent} e */
     const tagClick = (e) => {
         e.stopPropagation()
         if (kind === 'html') {
@@ -86,9 +81,9 @@
 
     const openWindow = () => {
         Fetch('/window/create', {method: 'POST'}).then((windowName) => {
-            Events.Once("detail-open", (res) => {
+            Events.Once("detail-window-open", (res) => {
                 if (res.sender === windowName) {
-                    Events.Emit("detail-opened", $state.snapshot(cb))
+                    Events.Emit("detail-window-opened", $state.snapshot(cb))
                 }
             })
         })
@@ -103,7 +98,7 @@
                 {cb}
                 {kind}
                 {editing}
-                {imgSrc}
+                imgSrc={cb.image.sUrl}
                 {htmlSource}
                 {onHtmlInput}
                 {onTextInput}

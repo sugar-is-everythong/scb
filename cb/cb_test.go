@@ -45,16 +45,15 @@ func TestCb(t *testing.T) {
 		}
 
 		WriteText("哈哈哈")*/
-	ctx := context.Background()
-	c, err := Watch(ctx, 500*time.Millisecond)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	for {
-		select {
-		case r := <-c:
-			fmt.Println(r)
-		}
+	time.Sleep(1 * time.Second)
+	recordChan, _ := Watch(context.Background(), 500*time.Millisecond)
+	for rec := range recordChan {
+		f, _ := rec.GetFiles()
+		h, _ := rec.GetHTML()
+		fmt.Printf("HasFiles:%t,%v\n", rec.HasFiles, f)
+		fmt.Printf("HasText:%t\n", rec.HasText)
+		fmt.Printf("HasHTML:%t,%s\n", rec.HasHTML, h.Fragment)
+		fmt.Printf("HasImage:%t\n\n", rec.HasImage)
 	}
 
 	time.Sleep(1 * time.Hour)

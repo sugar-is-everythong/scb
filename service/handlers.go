@@ -2,8 +2,11 @@ package service
 
 import (
 	"net/http"
+	"os"
 	"scb/cb"
+	"scb/global"
 	"scb/tools"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -131,17 +134,63 @@ func cbWriteText(c *gin.Context) {
 	OK_(c)
 }
 
-// cbWriteImage POST /cb/image：请求体为 PNG 编码的图片字节。
+// cbWriteImage POST 通过id去图片的缓存里拿去，因为前端也没有二进制
 func cbWriteImage(c *gin.Context) {
-	data, err := c.GetRawData()
-	if err != nil {
-		FailWithMsg(c, err.Error())
+	var q struct {
+		Id   string `json:"id"`
+		BUrl string `json:"bUrl"`
+	}
+
+	if err := c.ShouldBindJSON(&q); err != nil {
+		FailWithMsg(c, "参数解析错误"+err.Error())
 		return
 	}
-	if err := cb.WriteImage(data); err != nil {
-		FailWithMsg(c, err.Error())
-		return
+
+	// 有 BUrl 就是网络图片
+	if q.BUrl != "" {
+		if strings.HasPrefix(q.BUrl, cb.URL) {
+			// http://wails.localhost:9245/wg/file/C\Users\A***dd4.png
+			str := strings.Replace(q.BUrl, cb.URL+"/file/", "", 1)
+			str1 := str[0:1]
+			str2 := str[1:]
+			str = str1 + ":" + str2
+
+			img, err := os.ReadFile(str)
+			if err != nil {
+				FailWithMsg(c, err.Error())
+				return
+			}
+
+			if err := cb.WriteImage(img); err != nil {
+				FailWithMsg(c, err.Error())
+				return
+			}
+
+			OK_(c)
+			return
+		}
+
+		imgData, err := tools.GetWebImage(q.BUrl)
+		if err != nil {
+			FailWithMsg(c, err.Error())
+			return
+		}
+
+		if err := cb.WriteImage(imgData); err != nil {
+			FailWithMsg(c, err.Error())
+			return
+		}
+
+		OK_(c)
 	}
+
+	if img, has := cb.ImgArray.Find(func(a any) bool { return a.(cb.LuaArrImage).Id == q.Id }); q.Id != "" && has {
+		if err := cb.WriteImage(img.(cb.LuaArrImage).BData); err != nil {
+			FailWithMsg(c, err.Error())
+			return
+		}
+	}
+
 	OK_(c)
 }
 
@@ -167,14 +216,24 @@ func cbWriteImageCORS(c *gin.Context) {
 	OK_(c)
 }
 
-// cbWriteHTML POST /cb/html：请求体为 HTML 片段，按 CF_HTML 标准格式写入。
+// cbWriteHTML POST /cb/html：虽然叫写入 HTML，但是是写整个支持的结构，因为只有html片段有的软件写不进去
+// 虽说是整个结构，但是目前也就包含 html和text 两个字段，别的暂时没发现有回写的必要
 func cbWriteHTML(c *gin.Context) {
-	data, err := c.GetRawData()
+	var rj = cb.RecordJs{}
+
+	err := c.ShouldBindJSON(&rj)
 	if err != nil {
-		FailWithMsg(c, err.Error())
+		FailWithMsg(c, "参数处理错误"+err.Error())
 		return
 	}
-	if err := cb.WriteHTML(string(data)); err != nil {
+
+	r, err := rj.Transform()
+	if err != nil {
+		FailWithMsg(c, "结构转换错误"+err.Error())
+		return
+	}
+
+	if err := cb.WriteAll(r); err != nil {
 		FailWithMsg(c, err.Error())
 		return
 	}
@@ -210,60 +269,15 @@ func cbWriteFiles(c *gin.Context) {
 }
 
 func inset(c *gin.Context) {
+	mw, _ := global.App.Window.GetByName("粘一下")
+	mw.Hide()
+	tools.WaitForegroundWindow(global.Foreground, 1000)
+
 	err := tools.Paste()
 	if err != nil {
 		FailWithMsg(c, err.Error())
 		return
 	}
-	OK_(c)
-}
 
-// ---------- 本地存储 ----------
-
-func localStoreGet(c *gin.Context) {
-	s := cb.Store.All()
-	OkWithData(c, s)
-}
-
-func localStoreSet(c *gin.Context) {
-	var r cb.RecordJs
-
-	if err := c.ShouldBindJSON(&r); err != nil {
-		FailWithMsg(c, "请求参数解析"+err.Error())
-		return
-	}
-
-	if err := cb.Store.SetStoreRJ(&r); err != nil {
-		FailWithMsg(c, "存储错误"+err.Error())
-		return
-	}
-	OK_(c)
-}
-
-func localStoreDelete(c *gin.Context) {
-	var req struct {
-		Index int `json:"index"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	if err := cb.Store.Delete(req.Index); err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	OK_(c)
-}
-
-func localStoreSetAll(c *gin.Context) {
-	var records []cb.RecordJs
-	if err := c.ShouldBindJSON(&records); err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
-	if err := cb.Store.SetAll(records); err != nil {
-		FailWithMsg(c, err.Error())
-		return
-	}
 	OK_(c)
 }

@@ -2,7 +2,6 @@
     import {Events, Window} from '@wailsio/runtime';
     import Card from './clip/card.svelte';
     import {onMount} from 'svelte';
-    import {localPathReplace, toRealPath} from "#lib/file.js";
     import {cbInset, deleteLocal, saveLocal, updateStoreAll, withKind} from "#lib/cb.js";
     import {Fetch} from "#lib/fetch.js";
 
@@ -11,42 +10,13 @@
     Events.On('cb-change', (event) => {
         let cb = event.data;
         console.log(cb)
-
-/*         // html 里 只有纯图片的时候，把 html 转成图片数组拆成多条复制，因为系统复制的时候就不支持多张图片
-        if (cb.hasHTML) {
-            const parser = new DOMParser()
-            const doc = parser.parseFromString(cb.HTML?.Fragment, 'text/html')
-            const children = doc.body.children
-			console.log(children);
-            const onlyImg = children.length > 0
-                && Array.from(children).every(el => el.tagName === 'IMG')
-                && !doc.body.textContent.trim() // 文字是文本节点不在 children 里，要单独判断，否则 <img>文字 会被当成纯图片丢掉文字
-            if (onlyImg) {
-                let images = []
-                for (let i = 0; i < children.length; i++) {
-                    images[i] = {
-                        hasText: false,
-                        text: '',
-                        hasHTML: false,
-                        HTML: null,
-                        hasRTF: false,
-                        RTF: null,
-
-                        hasImage: true,
-                        image: localPathReplace(children[i].src),
-                        hasFiles: true,
-                        files: [localPathReplace(children[i].src)],// 为了存到本地的时候好处理，留一个file类型
-                    }
-                }
-                cb = images;
-                console.log(cb)
-            }
-        } */
-
-        if (Array.isArray(cb)) cblist.unshift(...cb)
-        else cblist.unshift(cb)
+        cblist.unshift(cb)
 
         if (cblist.length > 100) cblist.pop();
+
+        // 当有新内容的时候滚动到顶部
+        document.querySelector('.list')?.scrollTo(0, 0);
+        select = -1;
     });
 
     /**
@@ -128,6 +98,7 @@
         return t instanceof HTMLElement && !!t.closest('button, a');
     };
 
+    /** @type {HTMLElement} */
     let searchDom
 
     /** @param {KeyboardEvent} e */
@@ -189,23 +160,18 @@
         // 【文件】 类型的在card组件单独处理，文件类型的逻辑比较多
         let type = 'text';
         let body = cb.text;
-
-        if (kindOf(cb) === 'image' && cb.image) {
-            let img = cb.image
-            // 本来应该使用写入图片类型，但是现在的设计图片预览使用的是【文件】或者【网络连接】所以直接使用 imageCORS 进行下载了
-            if (img.startsWith('http')) { // 网络图片类型
-                type = 'imageCORS?url=' + img;
-                body = null
-            } else if (img.startsWith('data:')) { // base64图片类型
-                type = 'image';
-                body = base64ToBytes(img.split(',')[1]);
-            } else { // 本地的图片类型
-                type = 'files';
-                body = JSON.stringify([toRealPath(img)])
+        if (cb.hasImage) {
+            type = 'image'; // 图片的要在go段进行处理
+            body = {
+                id: cb.id,
+                bUrl:cb.image.bUrl
             }
-
-        } else if (!cb.text) {
-            return; // 没有可写回的内容
+        } else if (cb.hasHTML) {
+            body = cb;
+            type = 'html';
+        } else if (cb.hasFiles) {
+            type = 'files';
+            body = cb.files;
         }
 
         cbInset(type, body, () => {

@@ -75,6 +75,8 @@ func register(app *application.App) {
 		log.Println("Window not found")
 	}
 	showAtCursor := func() {
+		global.Foreground = tools.ForegroundWindow() // 先获取前台的窗口句柄，用于在粘贴完以后还原
+
 		x, y, err := tools.CursorPos()
 		mx := int(x)
 		my := int(y)

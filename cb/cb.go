@@ -13,7 +13,7 @@
 //	// 写入
 //	cb.WriteText("你好")
 //	cb.WriteImage(pngBytes)
-//	cb.WriteHTML("<b>加粗</b>")
+//	cb.WriteHTML(&cb.HTML{Fragment: "<b>加粗</b>"})
 //	cb.WriteRTF(rtfBytes)
 //	cb.WriteFiles([]string{`D:\a.txt`, `D:\b.png`})
 //	cb.WriteAll(rec) // 多格式一次写入，如"粘贴回原条目"
@@ -33,10 +33,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
-	"os"
-	"regexp"
 	"scb/global"
-	"scb/tools"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -55,7 +52,7 @@ type RecordJs struct {
 	HasText  bool     `json:"hasText"` // 含纯文本
 	Text     string   `json:"text"`
 	HasImage bool     `json:"hasImage"` // 含图片
-	Image    []byte   `json:"image"`
+	Image    cbImage  `json:"image"`
 	HasHTML  bool     `json:"hasHTML"` // 含 HTML 富文本
 	HTML     *HTML    `json:"HTML"`
 	HasRTF   bool     `json:"hasRTF"` // 含 RTF 富文本
@@ -73,6 +70,11 @@ func init() {
 		recordChan, _ := Watch(context.Background(), 500*time.Millisecond)
 		for rec := range recordChan {
 			rc := rec.transform() // 转换为 JS 可用的结构体并发送事件
+
+			fmt.Printf("HasFiles:%t,\n", rec.HasFiles)
+			fmt.Printf("HasText:%t\n", rec.HasText)
+			fmt.Printf("HasHTML:%t\n", rec.HasHTML)
+			fmt.Printf("HasImage:%t\n\n", rec.HasImage)
 			global.App.Event.Emit("cb-change", rc)
 		}
 	}()
@@ -276,25 +278,13 @@ func isPNG(data []byte) bool {
 	return len(data) >= 8 && bytes.Equal(data[:8], pngHeader)
 }
 
-// WriteHTML 将 HTML 片段按 CF_HTML 标准格式写入剪贴板（头部偏移自动计算）
-func WriteHTML(fragment string) error {
-	frag := []byte(fragment)
-	prefix := []byte("<html>\r\n<body>\r\n<!--StartFragment-->")
-	suffix := []byte("<!--EndFragment-->\r\n</body>\r\n</html>")
-	tpl := "Version:0.9\r\nStartHTML:%010d\r\nEndHTML:%010d\r\nStartFragment:%010d\r\nEndFragment:%010d\r\n"
-	head := fmt.Sprintf(tpl, 0, 0, 0, 0)
-	startHTML := len(head)
-	startFragment := startHTML + len(prefix)
-	endFragment := startFragment + len(frag)
-	endHTML := endFragment + len(suffix)
-	head = fmt.Sprintf(tpl, startHTML, endHTML, startFragment, endFragment)
-
-	blob := make([]byte, 0, endHTML)
-	blob = append(blob, head...)
-	blob = append(blob, prefix...)
-	blob = append(blob, frag...)
-	blob = append(blob, suffix...)
-	return writeFormat(formatHTML, blob)
+// WriteHTML 将完整的 HTML 结构按 CF_HTML 标准格式写入剪贴板，头部偏移由 buildCFHTML 计算。
+// Version 为空时补 "0.9"，SourceURL 为空则不写该行，因此允许调用方只给 Fragment。
+func WriteHTML(h *HTML) error {
+	if h == nil || h.Fragment == "" {
+		return errors.New("cb: HTML 片段为空")
+	}
+	return writeFormat(formatHTML, buildCFHTML(h))
 }
 
 // WriteRTF 将 RTF 原始字节写入剪贴板
@@ -325,7 +315,6 @@ func WriteAll(rec *Record) error {
 		cfDIB:         rec.RawImage,
 		formatPNG:     rec.RawPNG,
 		formatHTML:    rec.RawHTML,
-		formatRTF:     rec.RawRTF,
 		cfHDROP:       rec.RawFiles,
 	})
 }
@@ -342,29 +331,27 @@ func (r *Record) transform() RecordJs {
 		HasFiles: r.HasFiles,
 	}
 
-	// 图片类型可能包含 html 标签和 file 文件，需优先级排序减少图片的内存占用
-	// 但是不保留图片又比较难处理，讨厌
-	switch {
-	case rc.HasHTML:
+	if rc.HasHTML {
 		rc.HTML, _ = r.GetHTML()
+	}
+	if rc.HasText {
 		rc.Text = r.GetText()
-		//fallthrough
-	case rc.HasFiles:
+	}
+	if rc.HasFiles {
 		rc.Files, _ = r.GetFiles()
-		fallthrough
-	case rc.HasImage:
-		rc.Image, _ = r.GetImage()
-	case rc.HasRTF:
-		rc.RTF, _ = r.GetRTF()
-		rc.Text = r.GetText()
-	case rc.HasText:
-		rc.Text = r.GetText()
+	}
+	if rc.HasImage {
+		img, err := generateImage(r)
+		if err != nil {
+			fmt.Println("生成图片失败:", err.Error())
+		}
+		rc.Image = img
 	}
 
 	return rc
 }
 
-func (r *RecordJs) transform() (*Record, error) {
+func (r *RecordJs) Transform() (*Record, error) {
 	rec := Record{
 		Id:       r.Id,
 		HasText:  r.HasText,
@@ -373,8 +360,7 @@ func (r *RecordJs) transform() (*Record, error) {
 		HasRTF:   r.HasRTF,
 		HasFiles: r.HasFiles,
 		//RawHTML:  r.HTML, 额外转换，放在这里显示提醒我别忘了
-		RawImage: r.Image, // 这里不一定有内容
-		RawRTF:   r.RTF,
+		//RawImage: r.Image, // 这里不一定有内容
 		//RawFiles: r.Files,
 	}
 
@@ -389,50 +375,35 @@ func (r *RecordJs) transform() (*Record, error) {
 		rec.RawText = utf16Bytes(u)
 	}
 
-	// 给js图的时候和从js拿图的时候优先级正好相反，可以看readme
-	switch {
-	case r.HasImage:
+	if r.HasImage {
+		img, has := ImgArray.Find(func(a any) bool {
+			return r.Id == a.(LuaArrImage).Id
+		})
 
-		if r.HasFiles { // 这里永远只有一条文件，因为剪贴板不允许一次粘贴两条图片
-			imgFile, err := os.ReadFile(r.Files[0])
-			if err != nil {
-				return nil, fmt.Errorf("cb: 文件 %q 读取失败: %w", r.Files[0], err)
-			}
-			// 解析为图片，验证是否为合法图片格式
-			img, _, err := image.Decode(bytes.NewReader(imgFile))
+		// 缓存未命中（如程序重启后 LRU 已清空）时图片成员直接留空，
+		// 不能继续往下取 img：img 是 nil 接口，断言会 panic。
+		if has {
+			// 从图片缓存中找到的只有png，因为我当时只存了png
+			rec.RawPNG = img.(LuaArrImage).BData
+
+			// 把png转成dib
+			DIBimg, _, err := image.Decode(bytes.NewReader(rec.RawPNG))
 			if err != nil {
 				return nil, fmt.Errorf("解析图片失败: %w", err)
 			}
-			rec.RawImage = imgFile
-
-			// PNG
-			if isPNG(imgFile) {
-				rec.RawPNG = imgFile
-			} else {
-				// 走 Decode + Encode
-				var buf bytes.Buffer
-				err = png.Encode(&buf, img)
-				if err != nil {
-					return nil, fmt.Errorf("编码图片失败: %w", err)
-				}
-				rec.RawPNG = buf.Bytes()
-			}
-		} else if r.HasHTML { // 网络类型的图片
-			re := regexp.MustCompile(`<img[^>]+src=["']([^"']+)["']`)
-			matches := re.FindAllStringSubmatch(r.HTML.Fragment, -1)
-			src := matches[0][1]
-
-			imgData, err := tools.GetWebImage(src)
+			dib, err := encodeDIBFromImage(DIBimg)
 			if err != nil {
-				return nil, fmt.Errorf("cb: 图片 %q 下载失败: %w", src, err)
+				return nil, fmt.Errorf("DIB 编码失败: %w", err)
 			}
-
-			if isPNG(imgData) {
-				rec.RawPNG = imgData
-			} else {
-			}
+			rec.RawImage = dib
 		}
-	case r.HasFiles:
+	}
+
+	if r.HasHTML && r.HTML != nil {
+		rec.RawHTML = buildCFHTML(r.HTML)
+	}
+
+	if r.HasFiles {
 		hdrop, err := encodeHDROP(r.Files)
 		if err != nil {
 			return nil, err

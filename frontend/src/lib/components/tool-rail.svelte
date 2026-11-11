@@ -4,7 +4,7 @@
 
     /**
      * @type {{
-     *   kind: 'text' | 'html' | 'image' | 'files' | 'rtf',
+     *   kind: 'text' | 'html' | 'image' | 'files',
      *   pinned: boolean,
      *   onpin?: () => void,
      *   onedit?: () => void,

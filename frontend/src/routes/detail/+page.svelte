@@ -9,8 +9,8 @@
      * @type import('#bindings/scb/cb/models.ts').RecordJs | undefined
      */
     let cb = $state()
-    Events.Emit("detail-open")
-    Events.Once("detail-opened", (res) => {
+    Events.Emit("detail-window-open")
+    Events.Once("detail-window-opened", (res) => {
         console.log(res)
         cb = res.data
     })
@@ -36,10 +36,10 @@
     /** 'none' | 'text' | 'html' */
     let editing = $state('none');
 
-    // Go 的 []byte 过 JSON 是 base64，可直接拼 data URL
+    // 详情页的图片使用的是 Burl或者 Bdata
     const imgSrc = $derived.by(() => {
-        if (cb && (cb.image?.startsWith('/') || cb.image?.startsWith('data:') || cb.image?.startsWith('blob:') || cb.image?.startsWith('http'))) return cb.image
-        return `data:image/png;base64,${cb?.image}`
+        if (cb?.image.bUrl) return cb.image.bUrl
+        else return '/wg/getBimg/'+cb?.id
     });
 
     const htmlSource = $derived.by(() => {
@@ -125,6 +125,7 @@
                 {onTextInput}
                 {fileClick}
 				inDetail={true}
+                --max-height="100%"
         />
     </div>
 
@@ -214,6 +215,7 @@
     }
 
     #detail-content {
+        height: 100%;
         padding: 5px;
         overflow: auto;
         border-radius: 4px;

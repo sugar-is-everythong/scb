@@ -9,5 +9,6 @@ const (
 )
 
 var (
-	App *application.App
+	App        *application.App
+	Foreground uintptr // 工具窗口显示前的句柄
 )

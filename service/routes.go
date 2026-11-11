@@ -17,6 +17,8 @@ func (s *GinService) setupRoutes() {
 
 	wg := s.ginEngine.Group("/window")
 	windowGroup(wg)
+
+	imageGroup(s.ginEngine.Group("/image"))
 }
 
 func cbGroup(g *gin.RouterGroup) {
@@ -25,7 +27,6 @@ func cbGroup(g *gin.RouterGroup) {
 	g.GET("/text", cbGetText)
 	g.GET("/image", cbGetImage)
 	g.GET("/html", cbGetHTML)
-	g.GET("/rtf", cbGetRTF)
 	g.GET("/files", cbGetFiles)
 
 	// 写入
@@ -33,7 +34,6 @@ func cbGroup(g *gin.RouterGroup) {
 	g.POST("/image", cbWriteImage)
 	g.POST("/imageCORS", cbWriteImageCORS)
 	g.POST("/html", cbWriteHTML)
-	g.POST("/rtf", cbWriteRTF)
 	g.POST("/files", cbWriteFiles)
 
 	g.GET("/inset", inset)
@@ -53,4 +53,9 @@ func fileGroup(g *gin.RouterGroup) {
 
 func windowGroup(g *gin.RouterGroup) {
 	g.POST("create", create)
+}
+
+func imageGroup(g *gin.RouterGroup) {
+	g.GET("getBimg/:id", getBimg) // 原图
+	g.GET("getSimg/:id", getSimg) // 获取缩略图
 }

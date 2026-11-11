@@ -1,23 +1,23 @@
 <script>
     import ShadowHtml from "#lib/components/shadow-html.svelte";
-    import { setContext } from "svelte";
+    import {setContext} from "svelte";
 
-    let {cb, kind, editing, htmlSource, imgSrc, onHtmlInput, onTextInput, fileClick, inDetail=false, ...others} = $props();
-	setContext("inDetail",inDetail)
+    let {cb, kind, editing, htmlSource, imgSrc, onHtmlInput, onTextInput, fileClick, inDetail = false, ...others} = $props();
+    setContext("inDetail", inDetail)
+
 </script>
 
 {#if cb !== undefined}
     <div class="cb-item-box" style:height={inDetail ? '100%' : undefined}>
 
-        {#if kind === 'html'}
+        {#if kind === 'image'}
+            <img class="image" src={imgSrc} alt="">
+        {:else if kind === 'html'}
             {#if editing === 'html'}
                 <textarea class="editor" value={htmlSource} oninput={onHtmlInput}></textarea>
             {:else}
                 <ShadowHtml html={htmlSource}/>
             {/if}
-        {:else if kind === 'image'}
-            <!-- 在接受数据的时候遇到只包含图片的html或者file会转换成图片显示 -->
-            <img class="image" src={imgSrc} alt="">
         {:else if kind === 'files'}
             <ul class="files">
                 {#each cb.files as file (file)}
@@ -122,7 +122,7 @@
 
     .editor {
         width: 100%;
-        min-height: var(--height , 80px);
+        min-height: var(--height, 80px);
         height: 100%;
         padding: 6px 8px;
         border: 1px solid #d8ddeb;

@@ -66,11 +66,11 @@ func (s *StoreType) SetStoreR(r *Record) error {
 
 // SetStoreRJ 以 RecordJs 类型存储，先转成 Record
 func (s *StoreType) SetStoreRJ(r *RecordJs) error {
-	rec, err := r.transform()
+	rec, err := r.Transform()
 	if err != nil {
 		return err
 	}
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e := Entry{Record: *rec, Time: time.Now()}
@@ -106,7 +106,7 @@ func (s *StoreType) Delete(index int) error {
 func (s *StoreType) SetAll(records []RecordJs) error {
 	entries := make([]Entry, 0, len(records))
 	for _, r := range records {
-		rec, err := r.transform()
+		rec, err := r.Transform()
 		if err != nil {
 			return err
 		}
