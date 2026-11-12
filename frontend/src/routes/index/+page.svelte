@@ -438,7 +438,7 @@
         height: 22px;
         padding: 0;
         border-radius: 4px;
-        color: #0040ff;
+        color: #8d94a8;
         font: 600 11px/1 system-ui,
         sans-serif;
         cursor: pointer;
