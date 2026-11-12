@@ -29,6 +29,8 @@ export const config = $state({
     bgColor: '#adc5ff',
     bgImage: '',
     cardOpacity: 0.6,
+    // 强调色，用户选什么就是什么；正文色与提示色由它按同色相派生，一级比一级浅
+    textColor: '#000000',
     width: 300,
     height: 418,
     maxRecords: 100,
@@ -63,6 +65,45 @@ export const backgroundStyle = (cfg) => {
         return 'background-color: transparent;';
     }
     return `background-color: ${hexToRgba(cfg.bgColor, cfg.opacity)};`;
+};
+
+/** #rrggbb 转 [色相 0-360, 饱和度 0-1, 亮度 0-1]，非法颜色当黑色 */
+const hexToHsl = (hex) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex ?? '');
+    const n = m ? parseInt(m[1], 16) : 0;
+    const r = ((n >> 16) & 255) / 255;
+    const g = ((n >> 8) & 255) / 255;
+    const b = (n & 255) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) return [0, 0, l];
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return [h * 60, s, l];
+};
+
+/** [色相, 饱和度, 亮度] 转 #rrggbb */
+const hslToHex = (h, s, l) => {
+    const f = (n) => {
+        const k = (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+        return Math.round(c * 255).toString(16).padStart(2, '0');
+    };
+    return `#${f(0)}${f(8)}${f(4)}`;
+};
+
+/**
+ * 强调色原样用用户选的颜色，正文色与提示色在它的色相与亮度上小幅递进，一级比一级浅又不脱色系。
+ */
+export const textStyle = (cfg) => {
+    const [h, s, l] = hexToHsl(cfg.textColor);
+    return `--text-strong: ${cfg.textColor}; --text-main: ${hslToHex(h, s * 0.6, Math.min(0.85, l + 0.18))}; --text-muted: ${hslToHex(h, s * 0.4, Math.min(0.9, l + 0.36))};`;
 };
 
 /** 后端返回的配置应用到共享状态并广播，所有窗口一起换 */

@@ -438,7 +438,7 @@
         height: 22px;
         padding: 0;
         border-radius: 4px;
-        color: #8d94a8;
+        color: #2f6df6;
         font: 600 11px/1 system-ui,
         sans-serif;
         cursor: pointer;
@@ -448,7 +448,6 @@
 
     .chip:hover {
         background: #fff;
-        color: #4a5169;
     }
 
     .chip.on {
@@ -519,7 +518,7 @@
         border: 1px solid transparent;
         border-radius: 4px;
         background: transparent;
-        color: #3a3a3a;
+        color: #444444;
         cursor: pointer;
         transition: background-color 0.15s,
         color 0.15s;
@@ -528,14 +527,14 @@
 
     .gear:hover {
         background: #fff;
-        color: #3a3a3a;
+        color: #444444;
     }
 
     .empty {
-        user-select: none;
         margin-top: 40px;
         color: #a8aebe;
         font: 12px/1.5 system-ui, sans-serif;
         text-align: center;
+        user-select: none;
     }
 </style>
