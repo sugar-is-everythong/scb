@@ -5,6 +5,7 @@
     import {Fetch} from "#lib/fetch.js";
     import {Events} from "@wailsio/runtime";
     import CbItem from '#lib/components/cbItem.svelte';
+    import {config} from '#lib/config.svelte.js';
 
     /**
      * @type {{
@@ -23,6 +24,9 @@
     let editing = $state('none');
 
     let {kind, label} = $state(withKind(cb))
+
+    // 关闭“显示富文本”后，HTML 卡片降级成纯文本样式展现，标签仍标 HTML
+    const viewKind = $derived(kind === 'html' && !config.richText ? 'text' : kind);
 
     const htmlSource = $derived.by(() => {
         let hf = cb.HTML?.Fragment ?? ''
@@ -90,13 +94,13 @@
     }
 </script>
 
-<article class={['card', { pinned } ,{select}]}>
+<article class={['card', { pinned } ,{select}]} style="background: rgb(255 255 255 / {config.cardOpacity})">
     <div class="body" onclick={onBodyClick}>
         <span class="tag" onclick={tagClick}>{label}</span>
 
         <CbItem
                 {cb}
-                {kind}
+                kind={viewKind}
                 {editing}
                 imgSrc={cb.image.sUrl}
                 {htmlSource}
@@ -109,6 +113,7 @@
     <ToolRail
             {kind}
             {pinned}
+            useSettings
             onpin={onpin}
             onedit={() => toggleEdit(kind)}
             onsave={() => console.log('save', cb)}
@@ -125,8 +130,7 @@
         grid-gap: 2px;
         padding: 2px 8px;
         padding-right: 2px;
-        background: #fff;
-        border: 1px solid #e8eaf2;
+        border: 1px solid transparent;
         border-radius: 6px;
         transition: border-color 0.15s,
         box-shadow 0.15s;
@@ -138,23 +142,11 @@
     }
 
     .card:hover {
-        border-color: #d8ddeb;
         box-shadow: 0 2px 8px rgb(23 29 51 / 7%);
     }
 
     .card.pinned {
         border-color: #f5d488;
-    }
-
-    /* 图标栏平时淡出，悬停卡片才完全显现（参考 Win11 剪贴板） */
-    .card :global(.rail) {
-        opacity: 0.45;
-        transition: opacity 0.15s;
-    }
-
-    .card:hover :global(.rail),
-    .card.pinned :global(.rail) {
-        opacity: 1;
     }
 
     .body {

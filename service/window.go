@@ -33,3 +33,11 @@ func create(c *gin.Context) {
 
 	OkWithData(c, windowName)
 }
+
+// openSet 打开设置窗口，已存在则复用
+func openSet(c *gin.Context) {
+	sw, _ := global.App.Window.GetByName("设置窗口")
+	sw.Center()
+	sw.Show()
+	OK_(c)
+}

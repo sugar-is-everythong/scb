@@ -18,6 +18,9 @@ func (s *GinService) setupRoutes() {
 	wg := s.ginEngine.Group("/window")
 	windowGroup(wg)
 
+	sg := s.ginEngine.Group("/set")
+	setGroup(sg)
+
 	imageGroup(s.ginEngine.Group("/image"))
 }
 
@@ -53,6 +56,16 @@ func fileGroup(g *gin.RouterGroup) {
 
 func windowGroup(g *gin.RouterGroup) {
 	g.POST("create", create)
+	g.POST("set", openSet)
+}
+
+func setGroup(g *gin.RouterGroup) {
+	g.GET("/get", setGet)
+	g.POST("/save", setSave)
+
+	// 窗口背景：POST 转存用户选的图片，GET 输出当前背景图（三个窗口共用）
+	g.POST("/bgimg", setBgUpload)
+	g.GET("/bgimg", setBgImage)
 }
 
 func imageGroup(g *gin.RouterGroup) {

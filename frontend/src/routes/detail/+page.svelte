@@ -220,11 +220,11 @@
         padding: 5px;
         overflow: auto;
         border-radius: 4px;
-        background-color: rgb(255 255 255 / 0.7);
+        background-color: rgb(255 255 255 / var(--card-alpha));
     }
 
     #toolbar {
-        background-color: rgb(255 255 255 / 0.7);
+        background-color: rgb(255 255 255 / var(--card-alpha));
         --wails-draggable: drag;
         border-radius: 4px;
         display: flex;

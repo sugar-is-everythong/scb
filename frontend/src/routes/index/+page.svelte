@@ -4,6 +4,7 @@
     import {onMount} from 'svelte';
     import {cbInset, deleteLocal, saveLocal, updateStoreAll, withKind} from "#lib/cb.js";
     import {Fetch} from "#lib/fetch.js";
+    import {config} from '#lib/config.svelte.js';
 
     /** @type {import('#bindings/scb/cb/models.ts').RecordJs[]} */
     const cblist = $state([]);
@@ -12,7 +13,7 @@
         console.log(cb)
         cblist.unshift(cb)
 
-        if (cblist.length > 100) cblist.pop();
+        if (cblist.length > config.maxRecords) cblist.pop();
 
         // 当有新内容的时候滚动到顶部
         document.querySelector('.list')?.scrollTo(0, 0);
@@ -53,6 +54,19 @@
     const pinnedView = $derived(pinned.filter((cb) => matchType(cb) && matchKeyword(cb)));
     const listView = $derived(cblist.filter((cb) => matchType(cb) && matchKeyword(cb)));
     const view = $derived([...pinnedView, ...listView]);
+
+    /** 底栏状态：钉住条目 + 临时条目总数 */
+    const total = $derived(pinned.length + cblist.length);
+
+    /** 顶部过滤条各部件是否可见，全关时留一个最小高度 */
+    const hasFilters = $derived(FILTERS.some((f) => config.filterBar[f.key]));
+    const hasBar = $derived(hasFilters || config.filterBar.search || config.filterBar.clear);
+
+    // 过滤开关被关掉后，如果还停在被隐藏的过滤/关键字上，列表会被看不见的条件卡住，这里主动恢复
+    $effect(() => {
+        if (filter && !config.filterBar[filter]) filter = '';
+        if (!config.filterBar.search && keyword) keyword = '';
+    });
 
     /** 当前选中项下标，-1 表示未选中 */
     let select = $state(-1);
@@ -119,8 +133,11 @@
         } else if (e.key === 'Enter') {
             e.preventDefault();
             if (editingSet.size === 0 && select < 0) {
-                searchDom.focus();
-                searchDom.select();
+                // 搜索框可能被设置隐藏，没有输入框时不要把按键卡在这里
+                if (searchDom) {
+                    searchDom.focus();
+                    searchDom.select();
+                }
                 return
             }
 
@@ -164,7 +181,7 @@
             type = 'image'; // 图片的要在go段进行处理
             body = {
                 id: cb.id,
-                bUrl:cb.image.bUrl
+                bUrl: cb.image.bUrl
             }
         } else if (cb.hasHTML) {
             body = cb;
@@ -277,30 +294,38 @@
 <svelte:document onkeydown={documentOnkeydown} {onselectionchange}/>
 
 <main class="app">
-    <header class="bar">
-        <div class="filters">
-            {#each FILTERS as f (f.key)}
-                <button
-                        class={['chip', { on: filter === f.key }]}
-                        title={f.title}
-                        onclick={() => (filter = filter === f.key ? '' : f.key)}
-                >
-                    {#if f.icon}
-                        <img src={f.icon} alt="">
-                    {:else}
-                        {f.label}
+    <header class="bar" style:height={hasBar?'':'10px'}>
+        {#if hasFilters}
+            <div class="filters">
+                {#each FILTERS as f (f.key)}
+                    {#if config.filterBar[f.key]}
+                        <button
+                                class={['chip', { on: filter === f.key, file: f.key === 'files' }]}
+                                title={f.title}
+                                onclick={() => (filter = filter === f.key ? '' : f.key)}
+                        >
+                            {#if f.icon}
+                                <img src={f.icon} alt="">
+                            {:else}
+                                {f.label}
+                            {/if}
+                        </button>
                     {/if}
-                </button>
-            {/each}
-        </div>
+                {/each}
+            </div>
+        {/if}
 
-        <div class="search">
-            <input type="text" bind:this={searchDom} bind:value={keyword} placeholder="搜索文本">
-        </div>
+        {#if config.filterBar.search}
+            <div class="search">
+                <input type="text" bind:this={searchDom} bind:value={keyword} placeholder="搜索文本">
+            </div>
+        {/if}
 
-        <div class="acts">
-            <button class="ghost danger" onclick={clearAll}>清空</button>
-        </div>
+        {#if config.filterBar.clear}
+            <div class="acts">
+                <button class="ghost danger" onclick={clearAll}>清空</button>
+            </div>
+        {/if}
     </header>
 
     <section class="list" bind:this={listDom} style:margin-right={hasScrollbar?'4px':'10px'}>
@@ -334,6 +359,17 @@
             <p class="empty">复制点什么试试</p>
         {/if}
     </section>
+
+    <footer class="foot">
+        <span class="state">共 {total} 条</span>
+        <button class="gear" title="设置" onclick={() => Fetch('/window/set', {method: 'POST'})}>
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+        </button>
+    </footer>
 </main>
 
 <style>
@@ -343,7 +379,6 @@
         flex-direction: column;
         height: 100vh;
         overflow: hidden;
-        background: rgb(244 245 249 / 0.73);
         --wails-draggable: drag;
     }
 
@@ -369,7 +404,7 @@
             height: 16px;
         }
 
-        & button:nth-of-type(4) > img {
+        & .file > img {
             height: 14px;
         }
     }
@@ -453,6 +488,45 @@
         overflow-y: auto;
         margin: 10px;
         margin-top: 0;
+        margin-bottom: 4px;
+    }
+
+    .foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 0 0 auto;
+        height: 18px;
+        padding: 0 10px 4px 12px;
+        user-select: none;
+        --wails-draggable: drag;
+        mix-blend-mode: difference;
+    }
+
+    .state {
+        color: #8d94a8;
+        font: 11px/1 system-ui, sans-serif;
+    }
+
+    .gear {
+        display: grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        background: transparent;
+        color: #8d94a8;
+        cursor: pointer;
+        transition: background-color 0.15s,
+        color 0.15s;
+        --wails-draggable: no-drag;
+    }
+
+    .gear:hover {
+        background: #fff;
+        color: #4a5169;
     }
 
     .empty {

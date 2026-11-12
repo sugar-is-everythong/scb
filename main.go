@@ -5,7 +5,9 @@ import (
 	"log"
 	"scb/global"
 	"scb/service"
+	"scb/set"
 	"scb/tools"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -13,12 +15,10 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-const (
-	winWidth  = 300
-	winHeight = 418
-)
-
 func main() {
+	// 启动前先读设置：窗口尺寸和快捷键都以 config.json 为准，
+	// 改完后重启即生效
+	cfg := set.Load()
 
 	app := application.New(application.Options{
 		Name: "粘一下",
@@ -41,9 +41,9 @@ func main() {
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "粘一下",
-		Name:             "粘一下",
-		Width:            winWidth,
-		Height:           winHeight,
+		Name:             set.MainWindowName,
+		Width:            cfg.Width,
+		Height:           cfg.Height,
 		Frameless:        true,
 		DevToolsEnabled:  true,
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
@@ -61,7 +61,8 @@ func main() {
 		},
 	})
 
-	register(app)
+	set.Window()
+	register(app, cfg.Shortcut)
 
 	err := app.Run()
 	if err != nil {
@@ -69,13 +70,17 @@ func main() {
 	}
 }
 
-func register(app *application.App) {
-	mainW, has := app.Window.GetByName("粘一下")
+func register(app *application.App, shortcut string) {
+	mainW, has := app.Window.GetByName(set.MainWindowName)
 	if !has {
 		log.Println("Window not found")
+		return
 	}
 	showAtCursor := func() {
 		global.Foreground = tools.ForegroundWindow() // 先获取前台的窗口句柄，用于在粘贴完以后还原
+
+		// 窗口尺寸可能刚在设置页改过，这里重新读取，定位按当前实际大小计算
+		cfg := set.Load()
 
 		x, y, err := tools.CursorPos()
 		mx := int(x)
@@ -89,17 +94,17 @@ func register(app *application.App) {
 
 			// 水平：优先右侧，放不下则左侧
 			var posX int
-			if mx+10+winWidth <= wa.X+wa.Width {
+			if mx+10+cfg.Width <= wa.X+wa.Width {
 				posX = mx + 10
 			} else {
-				posX = mx - 10 - winWidth
+				posX = mx - 10 - cfg.Width
 			}
 
 			// 垂直：默认以鼠标为中心
-			posY := my - winHeight/2
-			if posY+winHeight > wa.Y+wa.Height {
+			posY := my - cfg.Height/2
+			if posY+cfg.Height > wa.Y+wa.Height {
 				// 底部放不下：窗口右下角对齐鼠标上方 10px
-				posY = my - 10 - winHeight
+				posY = my - 10 - cfg.Height
 			}
 			if posY < wa.Y {
 				// 顶部放不下：窗口左上角对齐鼠标下方 10px
@@ -118,17 +123,21 @@ func register(app *application.App) {
 			tools.ForceForeground(hwnd)
 		}
 	}
-	err := app.GlobalShortcut.Register("super+v", showAtCursor)
+	err := app.GlobalShortcut.Register(shortcut, showAtCursor)
 
 	if err != nil {
-		log.Println("全局快捷键注册失败", err.Error())
+		log.Println("全局快捷键注册失败", shortcut, err.Error())
 	}
 
 	// Win+V 被系统（剪贴板历史）占用，GlobalShortcut 注册不了，
 	// 改用低级键盘钩子拦截并接管这个组合。
-	if _, err := tools.HookWinV(func() {
-		application.InvokeSync(showAtCursor)
-	}); err != nil {
-		log.Println("Win+V 钩子安装失败", err.Error())
+	// 只有配置里指定的正好是 Win+V 时才装钩子：换成其它组合后如果还留着钩子，
+	// Win+V 会照样唤起窗口，等于快捷键改不掉。
+	if strings.EqualFold(strings.TrimSpace(shortcut), "super+v") {
+		if _, err := tools.HookWinV(func() {
+			application.InvokeSync(showAtCursor)
+		}); err != nil {
+			log.Println("Win+V 钩子安装失败", err.Error())
+		}
 	}
 }
