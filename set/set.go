@@ -49,8 +49,6 @@ type Config struct {
 	// CardOpacity 卡片底色的不透明度，取值 0.2~1，与 Opacity 相互独立。
 	// 所有窗口的卡片、面板底色都用它
 	CardOpacity float64 `json:"cardOpacity"`
-	// TextColor 文字强调色，#rrggbb。正文色与提示色由它按同色相降饱和生成，逐级变浅
-	TextColor string `json:"textColor"`
 	// Width Height 主窗口逻辑尺寸，单位与 Window.SetSize(width, height int) 一致
 	Width  int `json:"width"`
 	Height int `json:"height"`
@@ -74,9 +72,6 @@ const (
 
 	// defaultBgColor 是主窗口原本写死的底色 #adc5ff（即 rgb 173 197 255）
 	defaultBgColor = "#adc5ff"
-
-	// defaultTextColor 是文字强调色的默认值，正文色与提示色由它按色相生成
-	defaultTextColor = "#000000"
 
 	fileName = "config.json"
 
@@ -107,7 +102,6 @@ func Default() Config {
 		BgMode:      BgModeColor,
 		BgColor:     defaultBgColor,
 		CardOpacity: 0.6,
-		TextColor:   defaultTextColor,
 		Width:       300,
 		Height:      418,
 		MaxRecords:  100,
@@ -268,7 +262,6 @@ func (c *Config) normalize() {
 	if c.BgMode != BgModeImage {
 		c.BgMode = BgModeColor
 	}
-	c.TextColor = normalizeHexColor(c.TextColor, d.TextColor)
 	c.BgColor = normalizeHexColor(c.BgColor, d.BgColor)
 	// 选的图片丢了就退回纯色，否则窗口背景会变成完全透明
 	if c.BgMode == BgModeImage && BackgroundFile(*c) == "" {

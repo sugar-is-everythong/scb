@@ -94,7 +94,7 @@
     }
 </script>
 
-<article class={['card-cfg', { pinned }, {select}]}>
+<article class={['card', { pinned } ,{select}]} style="background: rgb(255 255 255 / {config.cardOpacity})">
     <div class="body" onclick={onBodyClick}>
         <span class="tag" onclick={tagClick}>{label}</span>
 
@@ -124,26 +124,28 @@
 </article>
 
 <style>
-    .card-cfg {
+    .card {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         grid-gap: 2px;
         padding: 2px 8px;
         padding-right: 2px;
+        border: 1px solid transparent;
+        border-radius: 6px;
         transition: border-color 0.15s,
         box-shadow 0.15s;
         --wails-draggable: no-drag;
     }
 
-    .card-cfg.select {
+    .card.select {
         border: 1px #4b7eff solid !important;
     }
 
-    .card-cfg:hover {
+    .card:hover {
         box-shadow: 0 2px 8px rgb(23 29 51 / 7%);
     }
 
-    .card-cfg.pinned {
+    .card.pinned {
         border-color: #f5d488;
     }
 

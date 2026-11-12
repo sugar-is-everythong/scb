@@ -82,7 +82,7 @@
     /** 选中项变化时把它滚动到可视区中间（只依赖选中下标，列表增删不触发） */
     $effect(() => {
         if (select < 0) return;
-        const el = document.querySelector('.list .card-cfg.select');
+        const el = document.querySelector('.list .card.select');
         el?.scrollIntoView({block: 'center', behavior: 'smooth'});
     });
 
@@ -143,10 +143,7 @@
 
             if (inButton(e)) return;
             const cb = view[select];
-            if (cb) {
-                inset(cb)
-                select = -1
-            }
+            if (cb) inset(cb);
         } else if (e.key === 'Escape') {
             if (editingSet.size > 0) return;
             e.preventDefault();
@@ -303,7 +300,7 @@
                 {#each FILTERS as f (f.key)}
                     {#if config.filterBar[f.key]}
                         <button
-                                class={['chip','card-cfg' , { on: filter === f.key, file: f.key === 'files' }]}
+                                class={['chip', { on: filter === f.key, file: f.key === 'files' }]}
                                 title={f.title}
                                 onclick={() => (filter = filter === f.key ? '' : f.key)}
                         >
@@ -320,15 +317,13 @@
 
         {#if config.filterBar.search}
             <div class="search">
-                <input type="text" bind:this={searchDom} bind:value={keyword}
-                       style:background-color={`rgba(255,255,255 , ${config.cardOpacity})`}
-                       placeholder="搜索文本">
+                <input type="text" bind:this={searchDom} bind:value={keyword} placeholder="搜索文本">
             </div>
         {/if}
 
         {#if config.filterBar.clear}
             <div class="acts">
-                <button class="ghost card-cfg danger" onclick={clearAll}>清空</button>
+                <button class="ghost danger" onclick={clearAll}>清空</button>
             </div>
         {/if}
     </header>
@@ -419,13 +414,11 @@
         max-width: 300px;
         display: flex;
         align-items: center;
-        color: var(--text-main);
         --wails-draggable: no-drag;
 
         input {
             border-radius: 4px;
             border: 1px solid #e2e5ef;
-            color: var(--text-main);
             padding: 3px 5px;
             width: 100%;
         }
@@ -437,7 +430,9 @@
         width: 24px;
         height: 22px;
         padding: 0;
+        border: 1px solid transparent;
         border-radius: 4px;
+        background: rgb(255 255 255 / 55%);
         color: #8d94a8;
         font: 600 11px/1 system-ui,
         sans-serif;
@@ -468,8 +463,10 @@
         flex-shrink: 0;
         padding: 1px 5px;
         padding-top: 2px;
+        border: 1px solid #e2e5ef;
         border-radius: 4px;
-        color: var(--text-main);
+        background: rgb(255 255 255 / 70%);
+        color: #6d748c;
         cursor: pointer;
         font: 11px/1.6 system-ui, sans-serif;
         transition: background-color 0.15s,
@@ -503,10 +500,11 @@
         padding: 0 10px 4px 12px;
         user-select: none;
         --wails-draggable: drag;
-        color: var(--text-main);
+        mix-blend-mode: difference;
     }
 
     .state {
+        color: #8d94a8;
         font: 11px/1 system-ui, sans-serif;
     }
 

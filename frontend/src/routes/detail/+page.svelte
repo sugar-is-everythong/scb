@@ -115,7 +115,7 @@
 </script>
 
 <main id="detail-box">
-    <div id="detail-content" class="card-cfg">
+    <div id="detail-content">
         <CbItem
                 {cb}
                 {kind}
@@ -130,7 +130,7 @@
         />
     </div>
 
-    <div id="toolbar" class="card-cfg" ondblclick={toggleFull}>
+    <div id="toolbar" ondblclick={toggleFull}>
 
         <div class="hr">
             <!-- 窗口置顶 -->
@@ -220,9 +220,11 @@
         padding: 5px;
         overflow: auto;
         border-radius: 4px;
+        background-color: rgb(255 255 255 / var(--card-alpha));
     }
 
     #toolbar {
+        background-color: rgb(255 255 255 / var(--card-alpha));
         --wails-draggable: drag;
         border-radius: 4px;
         display: flex;

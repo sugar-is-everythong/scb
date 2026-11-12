@@ -109,7 +109,7 @@
         {/snippet}
 
         <p class="group">界面</p>
-        <div class="card-cfg">
+        <div class="card">
             <div class="row col">
                 <span class="name">窗口背景</span>
                 <div class="seg">
@@ -141,14 +141,6 @@
                     </div>
                 </div>
             {/if}
-
-            <div class="row">
-                <span class="name">文字颜色</span>
-                <label class="color">
-                    <input type="color" bind:value={config.textColor} onchange={save}>
-                    <span class="val">{config.textColor}</span>
-                </label>
-            </div>
 
             <div class="row col">
                 <div class="text spread">
@@ -194,7 +186,7 @@
         </div>
 
         <p class="group">顶部过滤条</p>
-        <div class="card-cfg">
+        <div class="card">
             {@render switchRow('文字', config.filterBar.text, () => {
                 config.filterBar.text = !config.filterBar.text;
                 save();
@@ -222,7 +214,7 @@
         </div>
 
         <p class="group">右侧工具条</p>
-        <div class="card-cfg">
+        <div class="card">
             {@render switchRow('钉住', config.toolRail.pin, () => {
                 config.toolRail.pin = !config.toolRail.pin;
                 save();
@@ -242,7 +234,7 @@
         </div>
 
         <p class="group">记录与启动</p>
-        <div class="card-cfg">
+        <div class="card">
             <div class="row">
                 <div class="text">
                     <span class="name">记录条数上限</span>
@@ -280,10 +272,9 @@
         flex-direction: column;
         height: 100vh;
         overflow: hidden;
-        color: var(--text-main);
+        color: #4a5169;
         font: 12px/1.4 system-ui, sans-serif;
         padding-bottom: 5px;
-        user-select: none;
     }
 
     .titlebar {
@@ -300,7 +291,8 @@
     .title {
         font-size: 12px;
         font-weight: 600;
-        color: var(--text-strong);
+        color: #5a6178;
+        mix-blend-mode: difference;
     }
 
     .close {
@@ -312,7 +304,7 @@
         border: none;
         border-radius: 4px;
         background: transparent;
-        fill: var(--text-main);
+        fill: #8d94a8;
         cursor: pointer;
         transition: background-color 0.15s,
         fill 0.15s;
@@ -332,16 +324,21 @@
 
     .group {
         margin: 6px 0 5px 4px;
-        color: var(--text-main);
+        color: #98a0b4;
+        mix-blend-mode: difference;
         font: 600 12px/1.4 system-ui, sans-serif;
         letter-spacing: 0.04em;
         user-select: none;
     }
 
-    .card-cfg {
+    .card {
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        /* 默认态不要边框，留 1px 透明占位保持布局稳定 */
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: rgb(255 255 255 / var(--card-alpha));
     }
 
     .row {
@@ -377,17 +374,18 @@
 
     .name {
         font-size: 12px;
-        color: var(--text-main);
+        color: #4a5169;
     }
 
     .desc {
-        color: var(--text-muted);
+        color: #9aa1b4;
+        mix-blend-mode: difference;
         font-size: 10px;
         line-height: 1.3;
     }
 
     .val {
-        color: var(--text-strong);
+        color: #2f6df6;
         font: 600 11px/1 ui-monospace,
         Consolas,
         monospace;
@@ -458,7 +456,7 @@
         align-items: center;
         gap: 3px;
         flex: 0 0 auto;
-        color: var(--text-muted);
+        color: #8d94a8;
         font-size: 10px;
     }
 
@@ -468,7 +466,7 @@
         border: 1px solid #e2e5ef;
         border-radius: 4px;
         background: #fff;
-        color: var(--text-main);
+        color: #4a5169;
         font: 11px/1.5 system-ui, sans-serif;
         text-align: right;
         outline: none;
@@ -489,7 +487,7 @@
     }
 
     .unit {
-        color: var(--text-muted);
+        color: #9aa1b4;
         font-size: 10px;
     }
 
@@ -500,7 +498,7 @@
         border: 1px solid #e2e5ef;
         border-radius: 4px;
         background: #fff;
-        color: var(--text-main);
+        color: #4a5169;
         font: 600 10px/1.4 ui-monospace,
         Consolas,
         monospace;
@@ -513,10 +511,9 @@
     }
 
     .hint {
-        color: var(--text-muted);
+        color: #9aa1b4;
         font-size: 10px;
         line-height: 1.35;
-        user-select: text;
     }
 
     .hint.err {
@@ -537,14 +534,14 @@
         border: none;
         border-radius: 4px;
         background: transparent;
-        color: var(--text-main);
+        color: #6d748c;
         cursor: pointer;
         font: 11px/1.4 system-ui, sans-serif;
     }
 
     .seg-btn.on {
         background: #fff;
-        color: var(--text-strong);
+        color: #2f6df6;
         box-shadow: 0 1px 2px rgb(23 29 51 / 10%);
     }
 
@@ -583,7 +580,7 @@
         border: 1px solid #e2e5ef;
         border-radius: 4px;
         background: #fff;
-        color: var(--text-main);
+        color: #4a5169;
         cursor: pointer;
         font: 11px/1.5 system-ui, sans-serif;
     }

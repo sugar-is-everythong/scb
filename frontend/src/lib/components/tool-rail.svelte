@@ -110,7 +110,7 @@
         border: 0;
         border-radius: 7px;
         background: transparent;
-        color: #7e7e7e;
+        color: #a2a8ba;
         cursor: pointer;
         transition: background-color 0.15s,
         color 0.15s,
@@ -136,7 +136,7 @@
 
     .ico:hover {
         background: #eef1f8;
-        color: #696969;
+        color: #4a5169;
         transform: translateY(-1px);
     }
 
