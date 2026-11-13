@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/w32"
 )
 
 //go:embed all:frontend/dist
@@ -53,9 +54,9 @@ func main() {
 		AlwaysOnTop:      true,
 		BackgroundType:   application.BackgroundTypeTranslucent,
 		Windows: application.WindowsWindow{
-			/*	ExStyle: w32.WS_EX_NOACTIVATE | w32.WS_EX_LAYERED |
+			ExStyle: w32.WS_EX_NOACTIVATE | w32.WS_EX_LAYERED |
 				w32.WS_EX_TOPMOST |
-				w32.WS_EX_NOREDIRECTIONBITMAP,*/
+				w32.WS_EX_NOREDIRECTIONBITMAP,
 			DisableFramelessWindowDecorations: true,
 			HiddenOnTaskbar:                   true,
 		},
@@ -77,6 +78,14 @@ func register(app *application.App, shortcut string) {
 		return
 	}
 	showAtCursor := func() {
+		// 切换：面板已显示则收起。
+		// 用 Win32 真实可见性判断，绕开 Wails 的 windowShown 字段（我们不用它的 Show/Hide）。
+		hwnd := uintptr(mainW.NativeWindow())
+		if tools.IsWindowVisibleReal(hwnd) {
+			tools.HideNoActivate(hwnd)
+			return
+		}
+
 		global.Foreground = tools.ForegroundWindow() // 先获取前台的窗口句柄，用于在粘贴完以后还原
 
 		// 窗口尺寸可能刚在设置页改过，这里重新读取，定位按当前实际大小计算
@@ -114,19 +123,27 @@ func register(app *application.App, shortcut string) {
 			mainW.SetPosition(posX, posY)
 		}
 
-		mainW.Show()
-		mainW.Focus()
-
-		// Win11 前台锁定可能导致 Focus() 未真正激活窗口，检查并强制激活
-		hwnd := uintptr(mainW.NativeWindow())
-		if hwnd != 0 && tools.ForegroundWindow() != hwnd {
-			tools.ForceForeground(hwnd)
+		// 反射调 chromium.Show() 让 WebView2 渲染可见，再 SetWindowPos 显示父窗口。
+		// 全程不走 ShowWindow(SW_SHOW)，原窗口前台一刻不动。
+		if err := tools.ShowNoActivate(mainW, hwnd); err != nil {
+			log.Println("面板显示失败", err.Error())
 		}
 	}
 	err := app.GlobalShortcut.Register(shortcut, showAtCursor)
 
 	if err != nil {
 		log.Println("全局快捷键注册失败", shortcut, err.Error())
+	}
+
+	// 装面板键盘钩子：面板可见时拦 ↑↓EnterEsc 转 emit 给前端。
+	// enabled 用 Win32 真实可见性，与 showAtCursor 里的切换判断保持一致。
+	if _, err := tools.HookPanelKeys(
+		func() bool { return tools.IsWindowVisibleReal(uintptr(mainW.NativeWindow())) },
+		func(key string) {
+			app.Event.Emit("key-down", map[string]string{"key": key})
+		},
+	); err != nil {
+		log.Println("面板键盘钩子安装失败", err.Error())
 	}
 
 	// Win+V 被系统（剪贴板历史）占用，GlobalShortcut 注册不了，

@@ -40,6 +40,7 @@ func cbGroup(g *gin.RouterGroup) {
 	g.POST("/files", cbWriteFiles)
 
 	g.GET("/inset", inset)
+	g.POST("/hide", cbHide)
 
 	g.GET("/getlocal", localStoreGet)
 	g.POST("/savelocal", localStoreSet)

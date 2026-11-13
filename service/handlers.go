@@ -218,7 +218,12 @@ func cbWriteFiles(c *gin.Context) {
 
 func inset(c *gin.Context) {
 	mw, _ := global.App.Window.GetByName("粘一下")
-	mw.Hide()
+	hwnd := uintptr(mw.NativeWindow())
+	// 用 HideNoActivate 与 ShowNoActivate 配对
+	tools.HideNoActivate(hwnd)
+	// 点击面板时 WebView2 会程序化激活父窗口（WS_EX_NOACTIVATE 拦不住），
+	// 这里显式把前台还给原窗口，再等待切换完成后粘贴。
+	tools.FocusWindow(global.Foreground)
 	tools.WaitForegroundWindow(global.Foreground, 1000)
 
 	err := tools.Paste()
@@ -227,5 +232,15 @@ func inset(c *gin.Context) {
 		return
 	}
 
+	OK_(c)
+}
+
+// cbHide POST /cb/hide：隐藏面板。
+// 前端不能调 Wails 的 Window.Hide()（它会调 chromium.Hide() 并重置 windowShown/showRequested，
+// 导致下次 ShowNoActivate 显示时状态错乱），统一走这里用 HideNoActivate。
+func cbHide(c *gin.Context) {
+	mw, _ := global.App.Window.GetByName("粘一下")
+	hwnd := uintptr(mw.NativeWindow())
+	tools.HideNoActivate(hwnd)
 	OK_(c)
 }

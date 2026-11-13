@@ -33,6 +33,7 @@ var (
 	pSendInput           = user32.MustFindProc("SendInput")
 	pGetForegroundWindow = user32.MustFindProc("GetForegroundWindow")
 	pSetForegroundWindow = user32.MustFindProc("SetForegroundWindow")
+	pLockSetForeground   = user32.MustFindProc("LockSetForegroundWindow")
 )
 
 // keyboardInput 对应 Win32 的 KEYBDINPUT
@@ -207,4 +208,18 @@ func WaitForegroundWindow(target uintptr, timeout time.Duration) bool {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// LockSetForegroundWindow 锁定/解锁前台切换。
+// 锁定后 ShowWindow(SW_SHOW) 等内部走 SetForegroundWindow 的激活路径会被系统拦截，
+// 窗口仍然可见但不拿前台。用于在调用 Wails Show() 时做到“可见但零激活”。
+//
+// 注意：必须成对调用，且只锁极短区间（包住一次 Show 调用即可），长时间锁定
+// 会阻止用户手动切换窗口。
+func LockSetForegroundWindow(lock bool) {
+	code := uintptr(2) // LSFW_UNLOCK
+	if lock {
+		code = 1 // LSFW_LOCK
+	}
+	syscall.SyscallN(pLockSetForeground.Addr(), code)
 }

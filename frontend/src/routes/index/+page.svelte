@@ -115,6 +115,37 @@
     /** @type {HTMLElement} */
     let searchDom
 
+    /**
+     * 4 键统一处理：↑ ↓ 选择移动、Enter 粘贴、Esc 收起。
+     * 原生 keydown 与 Go 侧钩子转发的 'key-down' 事件共用这条路径。
+     * @param {string} key 与 JS KeyboardEvent.key 同名：'ArrowUp' | 'ArrowDown' | 'Enter' | 'Escape'
+     */
+    const handlePanelKey = (key) => {
+        if (key === 'ArrowDown') {
+            if (select < view.length - 1) select++;
+        } else if (key === 'ArrowUp') {
+            if (select > 0) select--;
+        } else if (key === 'Enter') {
+            if (editingSet.size > 0) return;
+            const cb = view[select];
+            if (cb) {
+                inset(cb);
+                select = -1;
+            }
+        } else if (key === 'Escape') {
+            if (editingSet.size > 0) return;
+            select = -1;
+            // 不能调 Wails 的 Window.Hide()（会调 chromium.Hide() 导致下次显示状态错乱），走后端 HideNoActivate
+            Fetch('/cb/hide', {method: 'POST'});
+        }
+    };
+
+    // Go 侧 tools.HookPanelKeys 拦截 ↑↓EnterEsc 后转 emit 过来。
+    // 面板不抢前台时这是唯一的键盘输入路径。
+    Events.On('key-down', (event) => {
+        handlePanelKey(event.data.key);
+    });
+
     /** @param {KeyboardEvent} e */
     const documentOnkeydown = (e) => {
         if (e.key === 'Escape' && document.activeElement === searchDom) {
@@ -152,7 +183,7 @@
             e.preventDefault();
 
             select = -1;
-            Window.Hide()
+            Fetch('/cb/hide', {method: 'POST'});
         }
     };
 
