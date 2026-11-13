@@ -185,8 +185,8 @@
             <div class="row">
                 <div class="text">
                     <span class="name">焦点模式</span>
-                    <span class="desc">开启：面板抢占前台，支持全部键盘事件、面板内编辑、点击外部关闭</span>
-                    <span class="desc">关闭：原窗口焦点不动，仅支持 ↑↓ Enter Esc 四键，无法面板内编辑</span>
+                    <span class="desc">开启：面板抢占前台，支持全部键盘事件、面板内编辑、点击外部关闭，<span style="color: dodgerblue">主面板可以拖动</span></span>
+                    <span class="desc">关闭：原窗口焦点不动，仅支持 ↑↓ Enter Esc 四键，无法面板内编辑，<span style="color: dodgerblue">主面板无法拖动</span></span>
                     <span class="desc">修改后需<span class="restart">重启应用</span>生效</span>
                 </div>
                 <button class="switch" class:on={config.focusMode} role="switch" aria-checked={config.focusMode}

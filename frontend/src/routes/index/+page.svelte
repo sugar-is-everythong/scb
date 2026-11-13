@@ -327,7 +327,7 @@
 
 <svelte:document onkeydown={documentOnkeydown} {onselectionchange}/>
 
-<main class="app">
+<main class="app" style:--wails-draggable={config.focusMode?'drag':'no-drag'}>
     <header class="bar" style:height={hasBar?'':'10px'}>
         {#if hasFilters}
             <div class="filters">
@@ -415,7 +415,6 @@
         flex-direction: column;
         height: 100vh;
         overflow: hidden;
-        --wails-draggable: drag;
     }
 
     .bar {

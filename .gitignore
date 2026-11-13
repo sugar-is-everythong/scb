@@ -3,3 +3,7 @@ bin
 frontend/dist
 frontend/.svelte-kit
 frontend/node_modules
+/.openidea/
+/.qoder/
+/.idea/
+/frontend/bindings/
