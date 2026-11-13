@@ -61,6 +61,11 @@ type Config struct {
 	// RichText 是否以富文本渲染 HTML；false 时只按纯文本样式显示，HTML 数据仍然保留
 	RichText bool `json:"richText"`
 
+	// FocusMode 焦点模式：true=抢焦点（面板显示时抢占前台，支持全部键盘事件、面板内编辑、点击外部关闭）；
+	// false=零抢焦点（原窗口焦点不动，仅 ↑↓EnterEsc 四键通过钩子转发）。
+	// 修改后需重启应用生效（ExStyle 和 HideOnFocusLost 是窗口创建时选项）。
+	FocusMode bool `json:"focusMode"`
+
 	// WindowMode 窗口的创建模式 w32.WS_EX_NOACTIVATE 或者 | w32.WS_EX_TOOLWINDOW
 	WindowMode int `json:"windowMode"`
 }

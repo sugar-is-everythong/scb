@@ -36,6 +36,8 @@ export const config = $state({
     maxRecords: 100,
     shortcut: 'super+v',
     richText: true,
+    // 焦点模式：true=抢焦点（支持全部键盘事件、面板内编辑），false=零抢焦点（仅四键，重启生效）
+    focusMode: false,
     windowMode: 0
 });
 

@@ -183,14 +183,17 @@
 
             <div class="row">
                 <div class="text">
-                    <span class="name">显示富文本内容</span>
-                    <span class="desc">关闭后 HTML 仍会保留，只按纯文本样式显示</span>
+                    <span class="name">焦点模式</span>
+                    <span class="desc">开启：面板抢占前台，支持全部键盘事件、面板内编辑、点击外部关闭</span>
+                    <span class="desc">关闭：原窗口焦点不动，仅支持 ↑↓ Enter Esc 四键，无法面板内编辑</span>
+                    <span class="desc">修改后需<span class="restart">重启应用</span>生效</span>
                 </div>
-                <button class="switch" class:on={config.richText} role="switch" aria-checked={config.richText}
-                        aria-label="显示富文本内容" onclick={() => {config.richText = !config.richText; save();}}>
+                <button class="switch" class:on={config.focusMode} role="switch" aria-checked={config.focusMode}
+                        aria-label="焦点模式" onclick={() => {config.focusMode = !config.focusMode; save();}}>
                     <i></i>
                 </button>
             </div>
+
         </div>
 
         <p class="group">顶部过滤条</p>
@@ -243,6 +246,18 @@
 
         <p class="group">记录与启动</p>
         <div class="card-cfg">
+
+            <div class="row">
+                <div class="text">
+                    <span class="name">显示富文本内容</span>
+                    <span class="desc">关闭后 HTML 仍会保留，只按纯文本样式显示</span>
+                </div>
+                <button class="switch" class:on={config.richText} role="switch" aria-checked={config.richText}
+                        aria-label="显示富文本内容" onclick={() => {config.richText = !config.richText; save();}}>
+                    <i></i>
+                </button>
+            </div>
+
             <div class="row">
                 <div class="text">
                     <span class="name">记录条数上限</span>
@@ -263,7 +278,7 @@
                 {:else}
                     <span class="hint">修饰符：ctrl / alt / shift / super（Win 键写 super，写 Win 不生效）</span>
                     <span class="hint">特殊键：space enter escape tab delete left right up down home end page up page down F1–F35</span>
-                    <span class="hint">修改后需重启应用才会重新注册快捷键</span>
+                    <span class="hint">修改后需<span class="restart">重启应用</span>才会重新注册快捷键</span>
                 {/if}
             </div>
         </div>
@@ -275,6 +290,10 @@
 </main>
 
 <style>
+    .restart{
+      color: red;  
+    }
+    
     .set {
         display: flex;
         flex-direction: column;
