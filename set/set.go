@@ -92,7 +92,7 @@ const (
 	// 记录条数下限，最少你得记录一条吧，要不然你干嘛来了
 	minRecords = 1
 
-	opacityMin = 0.2
+	opacityMin = 0
 )
 
 // mu 保护配置文件读写，避免设置页连点保存时两个请求交叉写同一个临时文件
@@ -275,6 +275,11 @@ func (c *Config) normalize() {
 	}
 	c.TextColor = normalizeHexColor(c.TextColor, d.TextColor)
 	c.BgColor = normalizeHexColor(c.BgColor, d.BgColor)
+	// 零抢焦点模式下面板不是前台，搜索框无法输入、编辑无法打字，强制关闭
+	if !c.FocusMode {
+		c.FilterBar.Search = false
+		c.ToolRail.Edit = false
+	}
 	// 选的图片丢了就退回纯色，否则窗口背景会变成完全透明
 	if c.BgMode == BgModeImage && BackgroundFile(*c) == "" {
 		c.BgMode = BgModeColor

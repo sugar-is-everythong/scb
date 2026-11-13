@@ -45,7 +45,7 @@
 
     .text {
         width: 100%;
-        max-height: 120px;
+        max-height: 150px;
         color: #2b2f3c;
         font: 13px/1.55 system-ui, 'Segoe UI', sans-serif;
         white-space: pre-wrap;

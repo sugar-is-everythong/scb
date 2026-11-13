@@ -96,7 +96,7 @@
 
 <article class={['card-cfg', { pinned }, {select}]}>
     <div class="body" onclick={onBodyClick}>
-        <span class="tag" onclick={tagClick}>{label}</span>
+        <span class="tag" onclick={tagClick} style:cursor={label==='HTML'?'pointer':''}>{label}</span>
 
         <CbItem
                 {cb}
@@ -153,10 +153,8 @@
 
     .tag {
         display: inline-block;
-        padding: 1px 5px;
         border-radius: 4px;
-        background: #f1f3f9;
-        color: #7c839b;
+        color: var(--text-main);
         margin-bottom: 2px;
         font: 600 10px/1.6 ui-monospace,
         SFMono-Regular,
@@ -164,7 +162,6 @@
         monospace;
         letter-spacing: 0.06em;
         text-transform: uppercase;
-        cursor: default;
         user-select: none;
     }
 </style>

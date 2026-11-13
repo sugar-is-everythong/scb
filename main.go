@@ -161,6 +161,14 @@ func register(app *application.App, shortcut string, focusMode bool) {
 		); err != nil {
 			log.Println("面板键盘钩子安装失败", err.Error())
 		}
+		// 点击面板外部隐藏：不吞事件，目标应用正常接收点击
+		if _, err := tools.HookPanelMouse(
+			func() uintptr { return uintptr(mainW.NativeWindow()) },
+			func() bool { return tools.IsWindowVisibleReal(uintptr(mainW.NativeWindow())) },
+			func() { tools.HideNoActivate(uintptr(mainW.NativeWindow())) },
+		); err != nil {
+			log.Println("面板鼠标钩子安装失败", err.Error())
+		}
 	}
 
 	// Win+V 被系统（剪贴板历史）占用，GlobalShortcut 注册不了，

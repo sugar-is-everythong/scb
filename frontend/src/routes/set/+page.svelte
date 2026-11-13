@@ -97,12 +97,13 @@
         {#snippet switchRow(
             /** @type {string} */ name,
             /** @type {boolean} */ value,
-            /** @type {{ (): void; }} */ toggle
+            /** @type {{ (): void; }} */ toggle,
+            /** @type {boolean} */ disabled = false
         )}
             <div class="row">
                 <span class="name">{name}</span>
                 <button class="switch" class:on={value} role="switch" aria-checked={value} aria-label={name}
-                        onclick={toggle}>
+                        disabled={disabled} onclick={toggle}>
                     <i></i>
                 </button>
             </div>
@@ -155,7 +156,7 @@
                     <span class="name">窗口透明度</span>
                     <span class="val">{Math.round(config.opacity * 100)}%</span>
                 </div>
-                <input type="range" min="0.2" max="1" step="0.01" bind:value={config.opacity}
+                <input type="range" min="0" max="1" step="0.01" bind:value={config.opacity}
                        aria-label="窗口透明度" onchange={save}>
             </div>
 
@@ -164,7 +165,7 @@
                     <span class="name">卡片透明度</span>
                     <span class="val">{Math.round(config.cardOpacity * 100)}%</span>
                 </div>
-                <input type="range" min="0.2" max="1" step="0.01" bind:value={config.cardOpacity}
+                <input type="range" min="0" max="1" step="0.01" bind:value={config.cardOpacity}
                        aria-label="卡片透明度" onchange={save}>
             </div>
 
@@ -217,7 +218,7 @@
             {@render switchRow('搜索框', config.filterBar.search, () => {
                 config.filterBar.search = !config.filterBar.search;
                 save();
-            })}
+            }, !config.focusMode)}
             {@render switchRow('清空按钮', config.filterBar.clear, () => {
                 config.filterBar.clear = !config.filterBar.clear;
                 save();
@@ -237,7 +238,7 @@
             {@render switchRow('编辑', config.toolRail.edit, () => {
                 config.toolRail.edit = !config.toolRail.edit;
                 save();
-            })}
+            }, !config.focusMode)}
             {@render switchRow('删除', config.toolRail.delete, () => {
                 config.toolRail.delete = !config.toolRail.delete;
                 save();
@@ -445,6 +446,11 @@
 
     .switch.on i {
         transform: translateX(15px);
+    }
+
+    .switch:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
     }
 
     input[type='range'] {

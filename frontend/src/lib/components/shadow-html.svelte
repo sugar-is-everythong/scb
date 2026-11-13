@@ -80,7 +80,7 @@
     };
 </script>
 
-<div class="html" style:--height={inDetail ? "100%" : "250px"}>
+<div class="html" style:--height={inDetail ? "100%" : "150px"}>
 <!--    <div style="width:100%;" {@attach shadow}></div>-->
     <div style="width:fit-content;min-width: 100%" {@attach shadow}></div>
 </div>
