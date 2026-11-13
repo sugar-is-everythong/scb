@@ -5,6 +5,9 @@
     let {html = ""} = $props();
     let inDetail = getContext("inDetail");
 
+    // 防重复：attachment 随 html 变化重新执行，每个 shadow root 只挂一次监听
+    const intercepted = new WeakSet();
+
     /**
      * 判断元素是否为空：自身没有文字，且所有子元素也为空
      * @param {Element} el
@@ -61,6 +64,20 @@
     };
 
     /**
+     * 拦截 shadow root 内所有超链接跳转
+     * @param {ShadowRoot} root
+     */
+    const blockLinks = (root) => {
+        if (intercepted.has(root)) return;
+        intercepted.add(root);
+        root.addEventListener('click', (e) => {
+            // composedPath 穿透 shadow DOM，点击 <a> 的子元素也能拦截
+            const a = e.composedPath().find(el => el.nodeType === 1 && el.tagName === 'A');
+            if (a) e.preventDefault();
+        });
+    };
+
+    /**
      * 把 HTML 片段渲染进影子根：样式、选择器、脚本都与主界面隔离
      * @type {import('svelte/attachments').Attachment}
      */
@@ -70,6 +87,7 @@
         // 到底要不要限制在 isOnlyImg 范围下呢，不显示太大了，限制了可能又会影响显示
         root.innerHTML = `${html}<style>img { max-width: 100%;${isOnlyImg(html) ? ' position: relative !important;' : ''}} </style>`;
         fitImgByRatio(root);
+        blockLinks(root);
         /*  if (isOnlyImg(html)) {
               // 图片加载前先按横向约束兜底，加载完成后再按真实比例修正
               root.innerHTML = `${html}<style>img { max-width: 100%;}</style>`;

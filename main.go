@@ -51,7 +51,7 @@ func main() {
 		BackgroundColour: application.NewRGBA(6, 7, 15, 0),
 		URL:              "#/index",
 		Hidden:           true,
-		HideOnFocusLost:  cfg.FocusMode, // 抢焦点模式：失焦自动隐藏；零抢焦点：面板从不抢前台，无失焦语义
+		HideOnFocusLost:  cfg.FocusMode, // 非焦点模式下由键盘事件控制
 		AlwaysOnTop:      true,
 		BackgroundType:   application.BackgroundTypeTranslucent,
 		Windows: application.WindowsWindow{
