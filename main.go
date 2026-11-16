@@ -8,6 +8,7 @@ import (
 	"scb/set"
 	"scb/tools"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/w32"
@@ -181,5 +182,16 @@ func register(app *application.App, shortcut string, focusMode bool) {
 		}); err != nil {
 			log.Println("Win+V 钩子安装失败", err.Error())
 		}
+
+		// 低级键盘钩子可能被系统按回调超时静默摘除，也可能被后安装的同类
+		// 钩子排到链尾，以致某些程序在前台时完全收不到事件。定时重装让它
+		// 始终位于链头。重装必须在安装线程（有消息循环的主线程）上执行，
+		// 所以经 InvokeSync 派发。
+		go func() {
+			time.Sleep(3 * time.Second)
+			for range time.Tick(2 * time.Second) {
+				application.InvokeSync(tools.ReinstallHook)
+			}
+		}()
 	}
 }
