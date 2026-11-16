@@ -46,6 +46,12 @@ type Config struct {
 	BgColor string `json:"bgColor"`
 	// BgImage 背景图片文件名，位于 global.Local 目录，仅 BgMode 为 image 时生效
 	BgImage string `json:"bgImage"`
+	// BgScale 背景图放大倍数，1 为“恰好铺满窗口”的下限，最大 maxBgScale。
+	// 以铺满为基准而非绝对像素，窗口尺寸变化或各窗口大小不同时都保证图片不小于窗口且不变形
+	BgScale float64 `json:"bgScale"`
+	// BgX BgY 背景图对齐位置，0~1，与 CSS background-position 百分比同义，0.5 居中
+	BgX float64 `json:"bgX"`
+	BgY float64 `json:"bgY"`
 	// CardOpacity 卡片底色的不透明度，取值 0.2~1，与 Opacity 相互独立。
 	// 所有窗口的卡片、面板底色都用它
 	CardOpacity float64 `json:"cardOpacity"`
@@ -89,6 +95,9 @@ const (
 	minWidth  = 300
 	minHeight = 418
 
+	// maxBgScale 背景图放大倍数上限，与前端设置页滑条一致
+	maxBgScale = 4
+
 	// 记录条数下限，最少你得记录一条吧，要不然你干嘛来了
 	minRecords = 1
 
@@ -111,6 +120,9 @@ func Default() Config {
 		Opacity:     0.3,
 		BgMode:      BgModeColor,
 		BgColor:     defaultBgColor,
+		BgScale:     1,
+		BgX:         0.5,
+		BgY:         0.5,
 		CardOpacity: 0.6,
 		TextColor:   defaultTextColor,
 		Width:       300,
@@ -210,6 +222,8 @@ func SetBackground(src string) (Config, error) {
 	old := cfg.BgImage
 	cfg.BgImage = name
 	cfg.BgMode = BgModeImage
+	// 换图后原图的尺寸比例变了，旧的缩放/位置不再适用，回到居中铺满
+	cfg.BgScale, cfg.BgX, cfg.BgY = 1, 0.5, 0.5
 	if err := save(cfg); err != nil {
 		mu.Unlock()
 		return Config{}, err
@@ -275,6 +289,25 @@ func (c *Config) normalize() {
 	}
 	c.TextColor = normalizeHexColor(c.TextColor, d.TextColor)
 	c.BgColor = normalizeHexColor(c.BgColor, d.BgColor)
+	// 背景图变换是几何量，越界夹紧而不是重置，尽量保留用户调好的构图
+	if c.BgScale < 1 {
+		c.BgScale = 1
+	}
+	if c.BgScale > maxBgScale {
+		c.BgScale = maxBgScale
+	}
+	if c.BgX < 0 {
+		c.BgX = 0
+	}
+	if c.BgX > 1 {
+		c.BgX = 1
+	}
+	if c.BgY < 0 {
+		c.BgY = 0
+	}
+	if c.BgY > 1 {
+		c.BgY = 1
+	}
 	// 零抢焦点模式下面板不是前台，搜索框无法输入、编辑无法打字，强制关闭
 	if !c.FocusMode {
 		c.FilterBar.Search = false

@@ -28,6 +28,11 @@ export const config = $state({
     bgMode: 'color',
     bgColor: '#adc5ff',
     bgImage: '',
+    // 背景图变换：scale 以“恰好铺满窗口”为 1 倍下限（≥1 保证图片不小于窗口且不变形），
+    // x/y 是对齐焦点 0~1，与 background-position 百分比同义，0.5 居中
+    bgScale: 1,
+    bgX: 0.5,
+    bgY: 0.5,
     cardOpacity: 0.6,
     // 强调色，用户选什么就是什么；正文色与提示色由它按同色相派生，一级比一级浅
     textColor: '#000000',
@@ -67,6 +72,27 @@ export const backgroundStyle = (cfg) => {
         return 'background-color: transparent;';
     }
     return `background-color: ${hexToRgba(cfg.bgColor, cfg.opacity)};`;
+};
+
+/**
+ * 背景图在 w×h 容器里的显示尺寸与左上角偏移，设置页预览与三个窗口共用同一套几何。
+ * base 取“恰好铺满容器”的 cover 倍数，scale≥1 时显示尺寸只会更大，
+ * 偏移按 (容器 - 图片) * 焦点 计算，x/y∈[0,1] 时图片永远盖满容器、不露边也不变形。
+ * @param {number} scale 放大倍数（≥1）
+ * @param {number} x 水平焦点 0~1
+ * @param {number} y 垂直焦点 0~1
+ * @param {number} natW 图片原始宽
+ * @param {number} natH 图片原始高
+ * @param {number} w 容器宽
+ * @param {number} h 容器高
+ * @returns {{dw: number, dh: number, ox: number, oy: number}} 任一尺寸未就绪时返回全 0
+ */
+export const bgLayout = (scale, x, y, natW, natH, w, h) => {
+    if (!natW || !natH || !w || !h) return {dw: 0, dh: 0, ox: 0, oy: 0};
+    const base = Math.max(w / natW, h / natH);
+    const dw = natW * base * scale;
+    const dh = natH * base * scale;
+    return {dw, dh, ox: (w - dw) * x, oy: (h - dh) * y};
 };
 
 /** #rrggbb 转 [色相 0-360, 饱和度 0-1, 亮度 0-1]，非法颜色当黑色 */

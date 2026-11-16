@@ -2,12 +2,34 @@
     import {Dialogs, Window} from '@wailsio/runtime';
     import {applyConfig, config, saveConfig} from '#lib/config.svelte.js';
     import {Fetch} from '#lib/fetch.js';
+    import ImageFitDialog from '#lib/components/image-fit-dialog.svelte';
+    import CloseButton from '#lib/components/close-button.svelte';
 
     // 配置由最顶级 +layout.js 加载，这里直接读写共享的 config：
     // 窗口底色、卡片透明度对所有窗口生效，其它项只影响“粘一下”窗口。
 
     /** 接口失败提示 */
     let error = $state('');
+
+    /** 背景图编辑对话框开关 */
+    let bgDialogOpen = $state(false);
+
+    /** 弹框选图并交后端转存，返回更新后的配置；取消返回 null */
+    const pickBgImage = async () => {
+        const picked = await Dialogs.OpenFile({
+            Title: '选择背景图片',
+            Filters: [{DisplayName: '图片', Pattern: '*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif'}]
+        });
+        const path = Array.isArray(picked) ? picked[0] : picked;
+        if (!path) return null;
+        return await Fetch('/set/bgimg', {method: 'POST', body: JSON.stringify({path})});
+    };
+
+    /** 对话框内的选图回调：成功后广播给三个窗口一起换背景 */
+    const pickAndApply = async () => {
+        const cfg = await pickBgImage();
+        if (cfg) applyConfig(cfg);
+    };
 
     /** 提交当前配置；快捷键写法不合法时不发请求 */
     const save = async () => {
@@ -24,33 +46,16 @@
         }
     };
 
-    /** 切换背景类型；选图片但还没上传过时直接弹选择框
+    /** 切换背景类型；选图片但还没图时打开编辑对话框
      * @param {string} mode
      * */
     const setBgMode = async (mode) => {
         if (mode === 'image' && !config.bgImage) {
-            await pickImage();
+            bgDialogOpen = true;
             return;
         }
         config.bgMode = mode;
         await save();
-    };
-
-    /** 选本地图片交给后端转存，成功后广播给三个窗口一起换背景 */
-    const pickImage = async () => {
-        const picked = await Dialogs.OpenFile({
-            Title: '选择背景图片',
-            Filters: [{DisplayName: '图片', Pattern: '*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif'}]
-        });
-        const path = Array.isArray(picked) ? picked[0] : picked;
-        if (!path) return;
-        try {
-            const cfg = await Fetch('/set/bgimg', {method: 'POST', body: JSON.stringify({path})});
-            applyConfig(cfg);
-            error = '';
-        } catch (e) {
-            error = '设置背景图片失败';
-        }
     };
 
     // 与 Wails pkg/application/keys.go 的解析规则一致，用于输入时即时提示
@@ -85,12 +90,7 @@
 <main class="set">
     <header class="titlebar">
         <span class="title">设置</span>
-        <button class="close" title="关闭" onclick={() => Window.Hide()}>
-            <svg viewBox="0 0 1024 1024" width="11" height="11">
-                <path d="M96.6 915c-10.9-10.9-10.9-28.7 0-39.6L887 85c10.9-10.9 28.7-10.9 39.6 0 10.9 10.9 10.9 28.7 0 39.6L136.2 915c-10.9 10.9-28.6 10.9-39.6 0z"></path>
-                <path d="M887 915L96.6 124.6c-10.9-10.9-10.9-28.7 0-39.6 10.9-10.9 28.7-10.9 39.6 0l790.4 790.4c10.9 10.9 10.9 28.7 0 39.6-10.9 10.9-28.6 10.9-39.6 0z"></path>
-            </svg>
-        </button>
+        <CloseButton onclick={() => Window.Hide()}/>
     </header>
 
     <section class="content">
@@ -138,7 +138,7 @@
                         {#if config.bgImage}
                             <img src="/wg/set/bgimg?v={config.bgImage}" alt="">
                         {/if}
-                        <button class="pick-btn" onclick={pickImage}>{config.bgImage ? '更换图片' : '选择图片'}</button>
+                        <button class="pick-btn" onclick={() => (bgDialogOpen = true)}>{config.bgImage ? '调整图片' : '设置图片'}</button>
                     </div>
                 </div>
             {/if}
@@ -288,6 +288,12 @@
             <p class="hint err">{error}</p>
         {/if}
     </section>
+
+    <ImageFitDialog bind:open={bgDialogOpen}
+                    src={config.bgImage ? `/wg/set/bgimg?v=${config.bgImage}` : ''}
+                    ratio={config.width / config.height}
+                    bind:scale={config.bgScale} bind:x={config.bgX} bind:y={config.bgY}
+                    title="背景图片设置" onpick={pickAndApply} onchange={save}/>
 </main>
 
 <style>
@@ -321,27 +327,6 @@
         font-size: 12px;
         font-weight: 600;
         color: var(--text-strong);
-    }
-
-    .close {
-        display: grid;
-        place-items: center;
-        width: 22px;
-        height: 22px;
-        padding: 0;
-        border: none;
-        border-radius: 4px;
-        background: transparent;
-        fill: var(--text-main);
-        cursor: pointer;
-        transition: background-color 0.15s,
-        fill 0.15s;
-        --wails-draggable: no-drag;
-    }
-
-    .close:hover {
-        background: #f04b4b;
-        fill: #fff;
     }
 
     .content {
@@ -611,5 +596,11 @@
         color: var(--text-main);
         cursor: pointer;
         font: 11px/1.5 system-ui, sans-serif;
+        transition: border-color 0.15s, color 0.15s;
+    }
+
+    .pick-btn:hover {
+        border-color: #c9d8ff;
+        color: #2f6df6;
     }
 </style>

@@ -4,6 +4,7 @@
     import {cbInset, withKind} from "#lib/cb.js";
     import CbItem from "#lib/components/cbItem.svelte";
     import {localPathReplace} from "#lib/file.js";
+    import CloseIcon from '#lib/components/close-icon.svelte';
 
     /**
      * @type import('#bindings/scb/cb/models.ts').RecordJs
@@ -190,14 +191,9 @@
             </button>
 
             <!-- 关闭按钮 -->
-            <button onmouseup={Window.Close()}
+            <button onmouseup={Window.Close()} title="关闭"
                     class={["close" ,"top-bar-func-button" ]}>
-                <svg viewBox="0 0 1024 1024" height={funcBtnHeight} width={funcBtnWidth}>
-                    <path d="M96.6 915c-10.9-10.9-10.9-28.7 0-39.6L887 85c10.9-10.9 28.7-10.9 39.6 0 10.9 10.9 10.9 28.7 0 39.6L136.2 915c-10.9 10.9-28.6 10.9-39.6 0z"
-                    ></path>
-                    <path d="M887 915L96.6 124.6c-10.9-10.9-10.9-28.7 0-39.6 10.9-10.9 28.7-10.9 39.6 0l790.4 790.4c10.9 10.9 10.9 28.7 0 39.6-10.9 10.9-28.6 10.9-39.6 0z"
-                    ></path>
-                </svg>
+                <CloseIcon width="13px" height={funcBtnHeight}/>
             </button>
 
         </div>
@@ -249,10 +245,6 @@
             &:nth-of-type(2) > svg {
                 width: 14px;
             }
-
-            &:nth-of-type(3) > svg {
-                width: 13px;
-            }
         }
 
         .top-bar-func-button:hover {
@@ -262,7 +254,7 @@
         .close:hover {
             background-color: red;
 
-            svg {
+            :global(svg) {
                 fill: #fff;
             }
         }
