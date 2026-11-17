@@ -5,6 +5,7 @@
     import CbItem from "#lib/components/cbItem.svelte";
     import {localPathReplace} from "#lib/file.js";
     import CloseIcon from '#lib/components/close-icon.svelte';
+	import {URL} from '#lib/const/index.js'
 
     /**
      * @type import('#bindings/scb/cb/models.ts').RecordJs
@@ -40,7 +41,7 @@
     // 详情页的图片使用的是 Burl或者 Bdata
     const imgSrc = $derived.by(() => {
         if (cb?.image.bUrl) return cb.image.bUrl
-        else return '/wg/getBimg/'+cb?.id
+        else return URL+'/image/getBimg/'+cb?.id
     });
 
     const htmlSource = $derived.by(() => {
